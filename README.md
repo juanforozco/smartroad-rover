@@ -84,6 +84,6 @@ Este proyecto permitirá aplicar conceptos fundamentales de sistemas embebidos c
 # Información del curso
 
 Curso: Electrónica Digital III  
-Estudiante: Tu nombre  
-Universidad: Tu universidad  
+Estudiante: Juan Felipe Orozco Londoño 
+Universidad: Universidad de Antioquia 
 Año: 2026
