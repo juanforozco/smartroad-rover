@@ -1,2 +1,2 @@
 # smartroad-rover
-Autonomous mobile robot based on Raspberry Pi Pico W for Embedded Systems course project.
+Robot móvil autónomo basado en Raspberry Pi Pico W desarrollado como proyecto final del curso Electrónica Digital III.
