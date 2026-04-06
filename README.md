@@ -6,43 +6,48 @@ Robot móvil autónomo basado en Raspberry Pi Pico W desarrollado como proyecto 
 
 # Descripción del proyecto
 
-SmartRoad Rover es una plataforma robótica móvil capaz de desplazarse en un entorno controlado evitando obstáculos y ejecutando comandos de movimiento enviados por el usuario.
+SmartRoad Rover es una plataforma robótica móvil capaz de desplazarse en un entorno, evitando obstáculos de forma autónoma y permitiendo el control por parte del usuario mediante una interfaz web.
 
-El sistema está basado en el microcontrolador **Raspberry Pi Pico W**, el cual permite integrar sensores, control de motores y comunicación inalámbrica mediante WiFi dentro de un sistema embebido.
+El sistema está basado en el microcontrolador **Raspberry Pi Pico W**, el cual integra la adquisición de datos de sensores, el procesamiento de información en tiempo real y el control de actuadores, junto con comunicación inalámbrica mediante WiFi.
 
-El robot contará con dos modos principales de operación:
+El robot cuenta con tres modos de operación:
 
 **Modo manual**
 
-El usuario podrá controlar el movimiento del robot desde un dispositivo móvil o computador mediante una interfaz web accesible a través de la conexión WiFi generada por el propio sistema. Desde esta interfaz se podrán enviar comandos como avanzar, retroceder, girar o detenerse.
+El usuario controla el movimiento del robot desde un dispositivo móvil o computador mediante una interfaz web accesible a través de WiFi. Se pueden ejecutar comandos de movimiento como avanzar, retroceder, girar a la izquierda, girar a la derecha y detenerse.
 
-**Modo autónomo**
+**Modo autónomo reactivo (principal)**
 
-En este modo el robot se desplazará de forma independiente utilizando sensores de distancia para detectar obstáculos y modificar su trayectoria evitando colisiones.
+El robot se desplaza de forma independiente utilizando sensores ultrasónicos para detectar obstáculos y ejecutar maniobras de evasión en tiempo real. La lógica de navegación se basa en la comparación de distancias medidas por sensores frontal y laterales.
+
+**Modo autónomo asistido por GPS (extendido)**
+
+El robot puede desplazarse hacia una coordenada objetivo en entornos exteriores, utilizando un módulo GPS. Durante la navegación, el sistema continúa realizando detección y evasión de obstáculos.
 
 ---
 
 # Motivación
 
-La motivación para este proyecto surge del interés personal en el área de robótica móvil y sistemas de navegación autónoma. Los vehículos autónomos modernos integran sensores, procesamiento embebido y sistemas de control para interactuar con su entorno y desplazarse de forma autónoma.
+La motivación del proyecto surge del interés en robótica móvil y sistemas embebidos aplicados a navegación autónoma. Los vehículos autónomos modernos integran sensores, procesamiento y control para interactuar con su entorno.
 
-Este proyecto busca emular, a pequeña escala, algunos de los principios fundamentales utilizados en los sistemas de conducción autónoma. Mediante el uso de sensores, control de motores y procesamiento en un microcontrolador, se pretende desarrollar un prototipo que permita explorar conceptos de robótica móvil y sistemas embebidos.
-
-Además, este proyecto representa una oportunidad para aplicar de manera práctica conocimientos relacionados con microcontroladores, adquisición de datos de sensores, control de actuadores y comunicación inalámbrica dentro de una plataforma robótica funcional.
+Este proyecto busca emular estos principios a pequeña escala, implementando un sistema capaz de percibir su entorno, tomar decisiones y actuar sobre él. Además, permite aplicar conocimientos en adquisición de datos, control de motores, comunicación inalámbrica y diseño de sistemas embebidos.
 
 ---
 
 # Arquitectura del sistema
 
-El sistema está compuesto por los siguientes módulos principales:
+El sistema se compone de los siguientes módulos principales:
 
 - Microcontrolador **Raspberry Pi Pico W** encargado del procesamiento del sistema.
-- Sensores ultrasónicos **HC-SR04** utilizados para medir la distancia a obstáculos.
-- Driver de motores para controlar la velocidad y dirección de los motores DC.
-- Plataforma robótica tipo **2WD** para el desplazamiento del robot.
-- Interfaz de comunicación inalámbrica mediante **WiFi** para el control del sistema desde un dispositivo móvil.
+- Sensores ultrasónicos **HC-SR04** (frontal, izquierdo y derecho) para detección de obstáculos.
+- Driver de motores para el control de velocidad y dirección.
+- Plataforma robótica tipo **2WD** para el desplazamiento.
+- Comunicación inalámbrica mediante **WiFi** para control remoto.
+- Módulo GPS (opcional) para navegación en exteriores.
+- Sistema de alimentación basado en batería recargable con regulación de voltaje.
+- Implementación final sobre **placa de circuito impreso (PCB)**.
 
-El microcontrolador procesa continuamente la información proveniente de los sensores y genera las señales de control necesarias para los motores del robot.
+El microcontrolador ejecuta un ciclo continuo de lectura de sensores, toma de decisiones y generación de señales de control hacia los actuadores.
 
 ---
 
@@ -60,30 +65,64 @@ Sensores ultrasónicos **HC-SR04** (3 unidades)
 - Sensor izquierdo
 - Sensor derecho
 
-Estos sensores permiten medir la distancia a obstáculos utilizando el principio de tiempo de vuelo de ondas ultrasónicas.
+Estos sensores permiten medir distancias mediante el principio de tiempo de vuelo de ondas ultrasónicas.
 
 ## Plataforma robótica
 
-Chasis robótico tipo **2WD** con dos motores DC controlados mediante un driver de motores.
+Chasis tipo **2WD** con dos motores DC controlados mediante un driver de motores.
+
+## Sistema de alimentación
+
+Batería recargable (7.4V) con módulo de regulación para alimentar el sistema de control y los actuadores.
+
+---
+
+# Escenario de pruebas
+
+El sistema será evaluado en dos entornos:
+
+**Entorno interior**
+
+- Pruebas de navegación autónoma reactiva
+- Validación de detección de obstáculos (< 20 cm)
+- Verificación de tiempo de respuesta (< 300 ms)
+- Operación continua durante al menos 2 minutos
+- Pruebas de control manual mediante interfaz web
+
+**Entorno exterior**
+
+- Pruebas de navegación con GPS
+- Movimiento hacia coordenada objetivo
+- Aproximación dentro de un radio de 3 metros
+- Integración con evasión de obstáculos
+
+---
+
+# Presupuesto
+
+El costo total estimado del proyecto es de aproximadamente:
+
+292,000 COP
+
+Este valor incluye componentes electrónicos, diseño y fabricación de PCB, plataforma mecánica y sistema de alimentación.
 
 ---
 
 # Resultados esperados
 
-El resultado esperado del proyecto es un robot móvil capaz de:
+El sistema desarrollado deberá ser capaz de:
 
-- Desplazarse de forma autónoma
-- Detectar y evitar obstáculos
-- Recibir comandos de movimiento desde una interfaz web
-- Operar en modo manual y modo autónomo
-
-Este proyecto permitirá aplicar conceptos fundamentales de sistemas embebidos como adquisición de datos de sensores, control de actuadores mediante PWM y comunicación inalámbrica.
+- Desplazarse de forma autónoma evitando obstáculos
+- Operar de manera continua sin fallos durante el tiempo de prueba
+- Responder en tiempo real a eventos del entorno
+- Permitir control manual mediante interfaz web
+- Navegar hacia una coordenada objetivo en exteriores (modo GPS)
 
 ---
 
 # Información del curso
 
 Curso: Electrónica Digital III  
-Estudiante: Juan Felipe Orozco Londoño 
-Universidad: Universidad de Antioquia 
+Estudiante: Juan Felipe Orozco Londoño  
+Universidad: Universidad de Antioquia  
 Año: 2026
