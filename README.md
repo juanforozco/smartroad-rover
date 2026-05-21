@@ -1,128 +1,167 @@
 # SmartRoad Rover
 
-Robot móvil autónomo basado en Raspberry Pi Pico W desarrollado como proyecto final para el curso **Electrónica Digital III**.
+Robot móvil autónomo basado en Raspberry Pi Pico W, desarrollado como proyecto final para el curso **Electrónica Digital III** — Universidad de Antioquia, 2026.
+
+**Estudiante:** Juan Felipe Orozco Londoño
 
 ---
 
-# Descripción del proyecto
+<p align="center">
+  <img src="images/diagrama_bloques.png" alt="Diagrama de bloques del sistema" width="80%"/>
+</p>
+
+---
+
+## Descripción del proyecto
 
 SmartRoad Rover es una plataforma robótica móvil capaz de desplazarse en un entorno, evitando obstáculos de forma autónoma y permitiendo el control por parte del usuario mediante una interfaz web.
 
-El sistema está basado en el microcontrolador **Raspberry Pi Pico W**, el cual integra la adquisición de datos de sensores, el procesamiento de información en tiempo real y el control de actuadores, junto con comunicación inalámbrica mediante WiFi.
-
-El robot cuenta con tres modos de operación:
-
-**Modo manual**
-
-El usuario controla el movimiento del robot desde un dispositivo móvil o computador mediante una interfaz web accesible a través de WiFi. Se pueden ejecutar comandos de movimiento como avanzar, retroceder, girar a la izquierda, girar a la derecha y detenerse.
-
-**Modo autónomo reactivo (principal)**
-
-El robot se desplaza de forma independiente utilizando sensores ultrasónicos para detectar obstáculos y ejecutar maniobras de evasión en tiempo real. La lógica de navegación se basa en la comparación de distancias medidas por sensores frontal y laterales.
-
-**Modo autónomo asistido por GPS (extendido)**
-
-El robot puede desplazarse hacia una coordenada objetivo en entornos exteriores, utilizando un módulo GPS. Durante la navegación, el sistema continúa realizando detección y evasión de obstáculos.
+El sistema está basado en el microcontrolador **Raspberry Pi Pico W**, que integra la adquisición de datos de sensores, el procesamiento en tiempo real y el control de actuadores, junto con comunicación inalámbrica mediante WiFi. La implementación final se realiza sobre una placa de circuito impreso (PCB) diseñada para el proyecto.
 
 ---
 
-# Motivación
+## Modos de operación
 
-La motivación del proyecto surge del interés en robótica móvil y sistemas embebidos aplicados a navegación autónoma. Los vehículos autónomos modernos integran sensores, procesamiento y control para interactuar con su entorno.
+### Modo autónomo reactivo *(principal)*
+El robot se desplaza de forma independiente usando sensores ultrasónicos HC-SR04 (frontal, izquierdo y derecho) para detectar obstáculos a menos de 20 cm y ejecutar maniobras de evasión en tiempo real. La dirección de giro se selecciona según la mayor distancia libre reportada por los sensores laterales. El ciclo de lectura y decisión opera a una frecuencia mínima de 5 Hz.
 
-Este proyecto busca emular estos principios a pequeña escala, implementando un sistema capaz de percibir su entorno, tomar decisiones y actuar sobre él. Además, permite aplicar conocimientos en adquisición de datos, control de motores, comunicación inalámbrica y diseño de sistemas embebidos.
+### Modo manual *(complementario)*
+El usuario controla el robot desde un smartphone o PC mediante una interfaz web accesible vía WiFi, generada por el propio microcontrolador. Comandos disponibles: avanzar, retroceder, girar izquierda, girar derecha y detener. Si se pierde la conexión WiFi, el sistema detiene los motores automáticamente en un máximo de 500 ms como medida de seguridad.
 
----
-
-# Arquitectura del sistema
-
-El sistema se compone de los siguientes módulos principales:
-
-- Microcontrolador **Raspberry Pi Pico W** encargado del procesamiento del sistema.
-- Sensores ultrasónicos **HC-SR04** (frontal, izquierdo y derecho) para detección de obstáculos.
-- Driver de motores para el control de velocidad y dirección.
-- Plataforma robótica tipo **2WD** para el desplazamiento.
-- Comunicación inalámbrica mediante **WiFi** para control remoto.
-- Módulo GPS (opcional) para navegación en exteriores.
-- Sistema de alimentación basado en batería recargable con regulación de voltaje.
-- Implementación final sobre **placa de circuito impreso (PCB)**.
-
-El microcontrolador ejecuta un ciclo continuo de lectura de sensores, toma de decisiones y generación de señales de control hacia los actuadores.
+### Modo autónomo asistido por GPS *(extendido)*
+El robot navega hacia una coordenada objetivo en exteriores usando un módulo GPS NEO-6M, actualizando su trayectoria al menos una vez por segundo. Durante la navegación, la detección de obstáculos permanece activa. Si el módulo GPS pierde señal por más de 3 segundos, el sistema entra en modo autónomo reactivo como comportamiento de contingencia. El objetivo se considera alcanzado dentro de un radio de 1,5 m de la coordenada destino.
 
 ---
 
-# Componentes principales
+## Arquitectura del sistema
 
-## Microcontrolador
+<p align="center">
+  <img src="images/arquitectura_smartroad.png" alt="Arquitectura del sistema" width="70%"/>
+</p>
 
-Raspberry Pi Pico W
+El sistema se divide en tres bloques principales:
 
-## Sensores
-
-Sensores ultrasónicos **HC-SR04** (3 unidades)
-
-- Sensor frontal
-- Sensor izquierdo
-- Sensor derecho
-
-Estos sensores permiten medir distancias mediante el principio de tiempo de vuelo de ondas ultrasónicas.
-
-## Plataforma robótica
-
-Chasis tipo **2WD** con dos motores DC controlados mediante un driver de motores.
-
-## Sistema de alimentación
-
-Batería recargable (7.4V) con módulo de regulación para alimentar el sistema de control y los actuadores.
+- **Entradas:** tres sensores ultrasónicos HC-SR04 (frontal, izquierdo, derecho) y módulo GPS NEO-6M (opcional, solo exteriores).
+- **Procesamiento:** Raspberry Pi Pico W ejecuta el ciclo continuo de lectura de sensores, lógica de navegación, gestión de modos y servidor web WiFi.
+- **Salidas:** driver TB6612FNG que controla los dos motores DC del chasis 2WD.
 
 ---
 
-# Escenario de pruebas
+## Componentes principales
 
-El sistema será evaluado en dos entornos:
+<p align="center">
+  <img src="images/picoW.png" alt="Raspberry Pi Pico W" width="30%"/>
+  &nbsp;&nbsp;&nbsp;
+  <img src="images/ultrasonic.png" alt="Sensor HC-SR04" width="30%"/>
+  &nbsp;&nbsp;&nbsp;
+  <img src="images/chassis.png" alt="Chasis 2WD" width="30%"/>
+</p>
 
-**Entorno interior**
-
-- Pruebas de navegación autónoma reactiva
-- Validación de detección de obstáculos (< 20 cm)
-- Verificación de tiempo de respuesta (< 300 ms)
-- Operación continua durante al menos 2 minutos
-- Pruebas de control manual mediante interfaz web
-
-**Entorno exterior**
-
-- Pruebas de navegación con GPS
-- Movimiento hacia coordenada objetivo
-- Aproximación dentro de un radio de 3 metros
-- Integración con evasión de obstáculos
-
----
-
-# Presupuesto
-
-El costo total estimado del proyecto es de aproximadamente:
-
-292,000 COP
-
-Este valor incluye componentes electrónicos, diseño y fabricación de PCB, plataforma mecánica y sistema de alimentación.
+| Componente | Descripción |
+|---|---|
+| Raspberry Pi Pico W | Microcontrolador principal con WiFi integrado |
+| HC-SR04 × 3 | Sensores ultrasónicos (frontal, izquierdo, derecho) |
+| TB6612FNG | Driver de motores DC |
+| NEO-6M | Módulo GPS (modo extendido) |
+| Chasis 2WD | Plataforma mecánica con dos motores DC |
+| Batería 7,4V (18650) | Alimentación con módulo de carga y regulador step-down |
+| PCB 2 capas | Implementación final del circuito |
 
 ---
 
-# Resultados esperados
+## Requisitos del sistema
 
-El sistema desarrollado deberá ser capaz de:
+### Funcionales destacados
 
-- Desplazarse de forma autónoma evitando obstáculos
-- Operar de manera continua sin fallos durante el tiempo de prueba
-- Responder en tiempo real a eventos del entorno
-- Permitir control manual mediante interfaz web
-- Navegar hacia una coordenada objetivo en exteriores (modo GPS)
+- Lectura de sensores ultrasónicos a mínimo 5 Hz
+- Detección de obstáculos a menos de 20 cm
+- Detención ante obstáculo frontal en menos de 300 ms (verificado por timestamps UART)
+- Evasión seleccionando el lado con mayor distancia libre
+- Servidor web embebido con 5 comandos de control
+- Navegación GPS con actualización de trayectoria ≥ 1 Hz
+- Radio de llegada al objetivo GPS: 1,5 m
+- Comportamiento seguro ante pérdida de WiFi y de señal GPS
+
+### No funcionales destacados
+
+| ID | Descripción |
+|---|---|
+| RNF-1 | Ciclo autónomo reactivo completado en < 200 ms (determinista) |
+| RNF-2 | Ejecución de comando manual < 100 ms desde recepción en el microcontrolador |
+| RNF-4 | Operación continua mínima de 5 minutos sin fallos |
+| RNF-5 | Detención automática en ≤ 500 ms ante pérdida de WiFi |
+| RNF-6 | Fallback a modo reactivo ante pérdida de GPS > 3 s |
+| RNF-9 | Filtrado de lecturas espurias de sensores ultrasónicos |
+| RNF-10 | Software estructurado en módulos funcionales independientes |
 
 ---
 
-# Información del curso
+## Escenario de pruebas
 
-Curso: Electrónica Digital III  
-Estudiante: Juan Felipe Orozco Londoño  
-Universidad: Universidad de Antioquia  
-Año: 2026
+Las pruebas se realizan en un **único entorno exterior** de mínimo 10 m × 10 m, sobre superficie plana (pavimento o concreto):
+
+- Área delimitada con cinta o conos en sus esquinas
+- Entre 2 y 4 obstáculos de **madera o cartón rígido** (superficie frontal plana y vertical, mínimo 20 cm de alto) en posiciones fijas
+- Marcador físico (cono o bandera) como referencia de la coordenada objetivo GPS, a mínimo 5 m del punto de partida
+
+**Instrumentación:**
+
+| Instrumento | Uso |
+|---|---|
+| Cinta métrica | Verificación de distancias y radio de llegada GPS |
+| Terminal serial UART (portátil) | Captura de timestamps en ms para verificación de tiempos de respuesta |
+| Smartphone / PC con navegador | Pruebas del modo manual vía WiFi |
+| Observación directa | Validación del comportamiento físico del rover |
+
+**Criterio de aceptación:** el sistema es válido si cumple todos los requisitos funcionales y no funcionales, mantiene estabilidad durante toda la sesión, y demuestra comportamiento seguro ante pérdida de WiFi y de señal GPS.
+
+---
+
+## Presupuesto estimado
+
+| Categoría | Subtotal (COP) |
+|---|---|
+| Componentes electrónicos | 126.000 |
+| Diseño y fabricación PCB + envío internacional | 85.000 |
+| Plataforma mecánica | 53.000 |
+| Sistema de alimentación | 48.000 |
+| **Total estimado** | **312.000** |
+
+Financiado con recursos propios del estudiante. El total incluye el envío internacional del fabricante de PCB (~20.000 COP).
+
+---
+
+## Estructura del repositorio
+
+```
+smartroad-rover/
+├── docs/                         # Documentos de entrega
+│   ├── Propuesta_PFinal_1000411042.pdf
+│   ├── Propuesta_Ronda2_EDIII_1000411042.pdf
+│   ├── Propuesta_Ronda2_EDIII_1000411042_CORREGIDO.pdf
+│   ├── Presupuesto.xlsx
+│   └── README.md
+├── firmware/                     # Código del microcontrolador (Pico W)
+│   └── README.md
+├── hardware/                     # Documentación de hardware
+│   └── README.md
+├── images/                       # Imágenes de la documentación
+│   ├── arquitectura_smartroad.png
+│   ├── diagrama_bloques.png
+│   ├── chassis.png
+│   ├── picoW.png
+│   └── ultrasonic.png
+└── README.md
+```
+
+> El firmware y los archivos de hardware se irán integrando conforme avance el desarrollo del proyecto.
+
+---
+
+## Referencias
+
+- Raspberry Pi Foundation — *Raspberry Pi Pico W Datasheet*
+- *HC-SR04 Ultrasonic Sensor Datasheet*
+- Toshiba — *TB6612FNG Motor Driver Datasheet*
+- u-blox — *NEO-6M GPS Module Datasheet*
+- Michael Barr — *Embedded Systems Engineering*, O'Reilly
