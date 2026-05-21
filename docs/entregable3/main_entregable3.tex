@@ -166,7 +166,60 @@ Validación final y entrega & 0\% \\
 % ============================================================
 \chapter{Cambios Respecto a la Definición — Ronda 2}
 
-% Contenido por agregar en la siguiente pregunta
+Se describen a continuación todos los cambios aplicados al proyecto respecto a la entrega de la Ronda 2, incluyendo correcciones derivadas de la retroalimentación del docente y decisiones técnicas tomadas durante la fase de diseño detallado.
+
+\section{Lenguaje de programación: MicroPython $\rightarrow$ C / Pico SDK}
+
+El firmware del sistema se implementará en \textbf{C utilizando el Pico SDK oficial} de Raspberry Pi. Esta decisión responde al requerimiento explícito del curso y es técnicamente más adecuada para una arquitectura basada en polling e interrupciones (IRQ), ya que el SDK en C ofrece acceso directo al hardware, control determinista de tiempos y manejo nativo de periféricos como PWM, UART y GPIO sin capas de abstracción intermedias.
+
+\section{Implementación física: PCB $\rightarrow$ Protoboard}
+
+La implementación física del circuito se realizará sobre \textbf{protoboard} en lugar de una placa de circuito impreso (PCB), por las siguientes razones:
+
+\begin{itemize}
+    \item El tiempo disponible hasta la entrega final no es suficiente para completar el ciclo de diseño de layout, fabricación, recepción y soldadura de una PCB con garantías de calidad.
+    \item La protoboard permite iteraciones rápidas durante el desarrollo y la depuración del firmware, facilitando modificaciones de conexiones sin riesgo de dañar un circuito permanente.
+    \item Para un prototipo funcional de validación académica, la protoboard cumple completamente con todos los requisitos funcionales y no funcionales definidos.
+\end{itemize}
+
+El esquemático y el presupuesto de fabricación de PCB se conservan como documentación técnica, representando la hoja de ruta para un escalamiento futuro del proyecto. Como complemento, se contempla el diseño de una \textbf{carcasa en impresión 3D} para alojar el conjunto sobre el chasis 2WD, aportando robustez mecánica al prototipo.
+
+\section{Actualización del presupuesto}
+
+Como consecuencia del cambio de PCB a protoboard, el presupuesto se actualiza de la siguiente manera:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Categoría} & \textbf{Subtotal (COP)} \\
+\hline
+Componentes electrónicos & 126.000 \\
+Protoboard y materiales de conexión & 25.000 \\
+Plataforma mecánica & 53.000 \\
+Sistema de alimentación & 48.000 \\
+\hline
+\textbf{Total estimado} & \textbf{252.000} \\
+\hline
+\end{tabular}
+\caption{Presupuesto actualizado — prototipo sobre protoboard}
+\end{table}
+
+El total se reduce de 312.000 COP a \textbf{252.000 COP}, liberando recursos para la adquisición de componentes faltantes.
+
+\section{Correcciones de la Ronda 2 incorporadas}
+
+Los siguientes ajustes fueron aplicados con base en la retroalimentación del docente:
+
+\begin{itemize}
+    \item \textbf{Nota administrativa:} se confirmó que no hubo cambio de nombre del proyecto ni novedades en el equipo de trabajo.
+    \item \textbf{RNF reformulados:} el tiempo de respuesta se separó por modo de operación. El modo autónomo reactivo tiene un ciclo determinista menor a 200 ms; el modo manual reconoce que la latencia WiFi no es controlable por el microcontrolador.
+    \item \textbf{RNF de tolerancia a fallos agregados:} RNF-5 (detención en $\leq$ 500 ms ante pérdida de WiFi) y RNF-6 (transición a modo autónomo reactivo ante pérdida de señal GPS por más de 3 segundos).
+    \item \textbf{Escenario de pruebas unificado:} único entorno exterior de mínimo 10$\times$10 m, materiales de obstáculos especificados (madera o cartón rígido) y verificación de tiempos por timestamps UART en lugar de cronómetro manual.
+    \item \textbf{Radio GPS corregido:} reducido de 3 m a 1,5 m para ser coherente con el área de pruebas y la precisión real del módulo NEO-6M.
+    \item \textbf{Costo de envío PCB incluido:} partida de envío internacional ($\sim$20.000 COP) incorporada al presupuesto de referencia para escalamiento futuro.
+\end{itemize}
 
 % ============================================================
 % CAPÍTULO 3 — CIRCUITOS ANALÓGICOS
