@@ -1,0 +1,224 @@
+\documentclass[12pt]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    citecolor=black
+}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+
+% Estilo de código C
+\lstdefinestyle{cstyle}{
+    language=C,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{gray}\itshape,
+    stringstyle=\color{orange},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!5},
+    tabsize=4
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{SmartRoad Rover}
+\lhead{Electrónica Digital III}
+\cfoot{\thepage}
+
+\begin{document}
+
+% ============================================================
+% PORTADA
+% ============================================================
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    \includegraphics[width=0.3\textwidth]{escudo_udea.png}\\[1.5cm]
+    {\large \textbf{Electrónica Digital III}}\\[0.5cm]
+    {\Huge \textbf{Avance del Proyecto Final}}\\[0.5cm]
+    {\LARGE \textbf{SmartRoad Rover}}\\[1cm]
+    Juan Felipe Orozco Londoño\\[0.3cm]
+    Universidad de Antioquia\\[2cm]
+    \today
+\end{titlepage}
+
+% ============================================================
+% ÍNDICE
+% ============================================================
+\tableofcontents
+\newpage
+
+% ============================================================
+% CAPÍTULO 1 — PLAN DE TRABAJO
+% ============================================================
+\chapter{Plan de Trabajo}
+
+\section{Descripción general}
+
+El proyecto SmartRoad Rover es desarrollado de forma individual por Juan Felipe Orozco Londoño. A continuación se presenta el plan de trabajo estructurado en 6 semanas, con las tareas definidas, su descripción y el estado de avance actual. El lenguaje de programación utilizado para el firmware es \textbf{C}, haciendo uso del \textbf{Pico SDK} oficial de Raspberry Pi, con una arquitectura basada en \textbf{polling e interrupciones (IRQ)}.
+
+\section{Desglose de tareas y avance}
+
+\subsection*{Semana 1 — Definición y diseño del sistema \hfill \textcolor{green!60!black}{100\%}}
+
+\begin{itemize}
+    \item Definición de requisitos funcionales y no funcionales.
+    \item Selección y justificación de componentes.
+    \item Elaboración del diagrama de bloques del hardware.
+    \item Estimación del presupuesto.
+    \item Configuración del repositorio en GitHub con estructura de carpetas.
+\end{itemize}
+
+\subsection*{Semana 2 — Diseño detallado de hardware y arquitectura de software \hfill \textcolor{green!60!black}{100\%}}
+
+\begin{itemize}
+    \item Diseño del esquemático del circuito (Pico W, HC-SR04, TB6612FNG, NEO-6M).
+    \item Definición de conexiones y asignación de pines del microcontrolador.
+    \item Diseño del prototipo sobre protoboard.
+    \item Definición de la arquitectura de software en C/Pico SDK: módulos, máquina de estados, flujo de polling e interrupciones.
+    \item Documentación del diseño en el repositorio.
+\end{itemize}
+
+\subsection*{Semana 3 — Adquisición de componentes y montaje del prototipo \hfill \textcolor{orange}{60\%}}
+
+\begin{itemize}
+    \item Adquisición de sensores HC-SR04, driver TB6612FNG, módulo GPS NEO-6M, chasis 2WD, batería 18650 y regulador step-down. \textit{(En proceso)}
+    \item Montaje del circuito sobre protoboard. \textit{(Pendiente)}
+    \item Verificación de alimentación y continuidad del circuito. \textit{(Pendiente)}
+    \item Prueba básica de encendido del sistema. \textit{(Pendiente)}
+\end{itemize}
+
+\subsection*{Semana 4 — Desarrollo e integración del firmware \hfill \textcolor{orange!80!red}{15\%}}
+
+\begin{itemize}
+    \item Configuración del entorno de desarrollo Pico SDK en C.
+    \item Implementación del módulo de lectura de sensores HC-SR04 mediante interrupciones (IRQ en flanco de subida y bajada).
+    \item Implementación del módulo de control de motores DC vía PWM.
+    \item Implementación del servidor web embebido para control manual vía WiFi.
+    \item Implementación de la máquina de estados para gestión de modos de operación.
+    \item Integración de módulos y pruebas unitarias.
+\end{itemize}
+
+\subsection*{Semana 5 — Integración completa y pruebas del sistema \hfill \textcolor{red}{0\%}}
+
+\begin{itemize}
+    \item Integración del firmware completo sobre el prototipo ensamblado.
+    \item Pruebas del modo autónomo reactivo (detección, evasión, tiempos de respuesta verificados por UART).
+    \item Pruebas del modo manual vía WiFi.
+    \item Pruebas del modo GPS en entorno exterior.
+    \item Verificación de comportamientos de contingencia (pérdida de WiFi, pérdida de señal GPS).
+    \item Corrección de errores y ajustes finos.
+\end{itemize}
+
+\subsection*{Semana 6 — Validación final y preparación de la entrega \hfill \textcolor{red}{0\%}}
+
+\begin{itemize}
+    \item Pruebas completas en el escenario de pruebas definitivo (entorno exterior, 10 m $\times$ 10 m).
+    \item Verificación de todos los requisitos funcionales (RF) y no funcionales (RNF).
+    \item Actualización final del repositorio: firmware, hardware, documentación.
+    \item Preparación de la sustentación del proyecto.
+\end{itemize}
+
+\section{Resumen de avance global}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Fase} & \textbf{Avance} \\
+\hline
+Diseño y planificación del sistema & 100\% \\
+Diseño de hardware y esquemático & 100\% \\
+Adquisición de componentes y montaje & 60\% \\
+Desarrollo de firmware (C / Pico SDK) & 15\% \\
+Integración y pruebas & 0\% \\
+Validación final y entrega & 0\% \\
+\hline
+\textbf{Avance general estimado} & \textbf{$\approx$45\%} \\
+\hline
+\end{tabular}
+\caption{Resumen del estado de avance del proyecto}
+\end{table}
+
+% ============================================================
+% CAPÍTULO 2 — CAMBIOS RESPECTO A LA RONDA 2
+% ============================================================
+\chapter{Cambios Respecto a la Definición — Ronda 2}
+
+% Contenido por agregar en la siguiente pregunta
+
+% ============================================================
+% CAPÍTULO 3 — CIRCUITOS ANALÓGICOS
+% ============================================================
+\chapter{Circuitos Analógicos}
+
+% Contenido por agregar en la siguiente pregunta
+
+% ============================================================
+% CAPÍTULO 4 — DIAGRAMA DE BLOQUES DEL HARDWARE
+% ============================================================
+\chapter{Diagrama de Bloques del Hardware}
+
+% Contenido por agregar en la siguiente pregunta
+
+% ============================================================
+% CAPÍTULO 5 — ARQUITECTURA DE SOFTWARE
+% ============================================================
+\chapter{Arquitectura de Software}
+
+% Contenido por agregar en la siguiente pregunta
+
+% ============================================================
+% CAPÍTULO 6 — MANEJO DEL REPOSITORIO
+% ============================================================
+\chapter{Manejo del Repositorio}
+
+% Contenido por agregar en la siguiente pregunta
+
+% ============================================================
+% REFERENCIAS
+% ============================================================
+\begin{thebibliography}{9}
+
+\bibitem{picosdk}
+Raspberry Pi Foundation. \textit{Raspberry Pi Pico C/C++ SDK}. \url{https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf}
+
+\bibitem{picow}
+Raspberry Pi Foundation. \textit{Raspberry Pi Pico W Datasheet}.
+
+\bibitem{hcsr04}
+\textit{HC-SR04 Ultrasonic Sensor Datasheet}.
+
+\bibitem{tb6612}
+Toshiba. \textit{TB6612FNG Motor Driver Datasheet}.
+
+\bibitem{neo6m}
+u-blox. \textit{NEO-6M GPS Module Datasheet}.
+
+\bibitem{barr}
+Michael Barr. \textit{Embedded Systems Engineering}. O'Reilly.
+
+\end{thebibliography}
+
+\end{document}
