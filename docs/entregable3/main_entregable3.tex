@@ -224,9 +224,159 @@ Los siguientes ajustes fueron aplicados con base en la retroalimentación del do
 % ============================================================
 % CAPÍTULO 3 — CIRCUITOS ANALÓGICOS
 % ============================================================
-\chapter{Circuitos Analógicos}
+\chapter{Circuitos Analógicos Requeridos}
 
-% Contenido por agregar en la siguiente pregunta
+El sistema SmartRoad Rover requiere \textbf{cuatro circuitos analógicos} de acondicionamiento. Tres de ellos son idénticos (un divisor de tensión por cada sensor HC-SR04) y uno corresponde al sistema de alimentación con regulación de voltaje. A continuación se presenta la lista, el procedimiento de diseño de cada uno y su estado de avance.
+
+\section{Lista de circuitos requeridos}
+
+\begin{enumerate}
+    \item Divisor de tensión resistivo — sensor HC-SR04 frontal (ECHO: 5 V → 3.3 V)
+    \item Divisor de tensión resistivo — sensor HC-SR04 izquierdo (ECHO: 5 V → 3.3 V)
+    \item Divisor de tensión resistivo — sensor HC-SR04 derecho (ECHO: 5 V → 3.3 V)
+    \item Circuito de alimentación — regulador step-down 7.4 V → 5 V con dos dominios de voltaje
+\end{enumerate}
+
+\section{Circuitos 1, 2 y 3 — Divisor de tensión resistivo (HC-SR04 ECHO)}
+
+\subsection{Problema que resuelve}
+
+El Raspberry Pi Pico W opera con lógica de \textbf{3.3 V}. Sus pines GPIO soportan un máximo de 3.3 V en la entrada. El sensor HC-SR04 opera a \textbf{5 V} y devuelve la señal ECHO a nivel de 5 V. Conectar directamente el pin ECHO al GPIO del Pico W daña el microcontrolador de forma permanente. Es necesario adaptar el nivel lógico de 5 V a 3.3 V antes de que la señal llegue al GPIO.
+
+El pin TRIG del HC-SR04 acepta 3.3 V como nivel alto válido, por lo tanto la señal de salida del Pico W va directamente al TRIG sin circuito intermedio.
+
+\subsection{Topología seleccionada}
+
+Divisor resistivo de tensión. Es la solución más simple, económica y confiable para adaptación de nivel lógico unidireccional (el ECHO solo va del sensor al microcontrolador, no al revés). No requiere componentes activos ni encapsulados especiales.
+
+\subsection{Procedimiento de diseño y cálculo}
+
+La ecuación del divisor de tensión es:
+
+\[
+V_{out} = V_{in} \cdot \frac{R_2}{R_1 + R_2}
+\]
+
+\textbf{Objetivo:} $V_{in} = 5\,\text{V}$, $V_{out} \leq 3.3\,\text{V}$
+
+\textbf{Valores seleccionados:} $R_1 = 1\,\text{k}\Omega$, $R_2 = 2\,\text{k}\Omega$
+
+\textbf{Verificación:}
+\[
+V_{out} = 5 \cdot \frac{2000}{1000 + 2000} = 5 \cdot \frac{2}{3} = 3.33\,\text{V} \quad \checkmark
+\]
+
+Este valor de 3.33 V es seguro para el GPIO del Pico W (máximo 3.3 V, con un margen de tolerancia del 1\%) y suficientemente alto para ser reconocido como nivel lógico HIGH (umbral típico $V_{IH} = 2.0\,\text{V}$).
+
+\textbf{Corriente a través del divisor:}
+\[
+I = \frac{V_{in}}{R_1 + R_2} = \frac{5}{3000} \approx 1.67\,\text{mA}
+\]
+Valor despreciable, compatible con la capacidad de corriente del pin ECHO del HC-SR04.
+
+\subsection{Diagrama de conexiones en protoboard}
+
+Cada divisor de tensión se implementa del siguiente modo, replicado tres veces:
+
+\begin{enumerate}
+    \item Pin \textbf{VCC} del HC-SR04 → riel de 5 V de la protoboard.
+    \item Pin \textbf{GND} del HC-SR04 → riel GND de la protoboard.
+    \item Pin \textbf{TRIG} del HC-SR04 → GPIO del Pico W (salida directa, sin circuito intermedio).
+    \item Pin \textbf{ECHO} del HC-SR04 → extremo de \textbf{R1 (1 k$\Omega$)}.
+    \item Extremo libre de R1 → nodo intermedio en protoboard. Desde este mismo nodo:
+    \begin{itemize}
+        \item Conectar \textbf{R2 (2 k$\Omega$)} hacia GND.
+        \item Conectar un cable hacia el \textbf{pin GPIO del Pico W} (entrada ECHO\_IN).
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Componentes necesarios por cada divisor (×3)}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Componente} & \textbf{Valor} & \textbf{Cantidad} \\
+\hline
+Resistencia & 1 k$\Omega$ / 0.25 W & 1 \\
+Resistencia & 2 k$\Omega$ / 0.25 W & 1 \\
+Cable jumper macho-macho & — & 4 \\
+\hline
+\end{tabular}
+\caption{Componentes por divisor de tensión (se requieren 3 conjuntos)}
+\end{table}
+
+\subsection{Estado de avance}
+
+\textbf{Diseño: 100\%.} Los valores están calculados, verificados y listos para implementar.\\
+\textbf{Implementación física: pendiente} (sujeta a la adquisición de los sensores HC-SR04).
+
+\section{Circuito 4 — Sistema de alimentación con regulador step-down}
+
+\subsection{Problema que resuelve}
+
+El sistema tiene \textbf{dos dominios de voltaje}:
+
+\begin{itemize}
+    \item \textbf{7.4 V} (batería 18650): requerido directamente por los motores DC a través del pin VM del driver TB6612FNG.
+    \item \textbf{5 V regulados}: requeridos por el Pico W (pin VSYS, acepta 1.8--5.5 V), los sensores HC-SR04 (Vcc = 5 V) y el módulo GPS NEO-6M (Vcc = 3.3 V, regulado internamente desde el pin 3V3OUT del Pico W).
+\end{itemize}
+
+No es posible alimentar directamente la lógica con 7.4 V sin dañar los componentes. Se requiere un regulador step-down (convertidor buck) que reduzca eficientemente 7.4 V a 5 V.
+
+\subsection{Módulo seleccionado}
+
+Módulo regulador step-down genérico basado en el integrado \textbf{MP1584} o similar. Parámetros relevantes:
+
+\begin{itemize}
+    \item Voltaje de entrada: 4.5--28 V (compatible con 7.4 V de la batería).
+    \item Voltaje de salida: ajustable; configurado a \textbf{5 V} mediante el potenciómetro del módulo.
+    \item Corriente de salida máxima: 3 A.
+    \item Eficiencia típica: 92\%.
+\end{itemize}
+
+\subsection{Procedimiento de diseño y cálculo de corriente}
+
+Se estima la corriente total del dominio de 5 V:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Componente} & \textbf{Corriente típica} \\
+\hline
+Raspberry Pi Pico W (WiFi activo) & 100 mA \\
+HC-SR04 × 3 & 15 mA × 3 = 45 mA \\
+NEO-6M GPS & 45 mA \\
+\hline
+\textbf{Total dominio 5 V} & \textbf{190 mA} \\
+\hline
+\end{tabular}
+\caption{Consumo estimado del dominio de lógica}
+\end{table}
+
+El regulador seleccionado (3 A) entrega un margen de seguridad mayor a 15:1 sobre la carga de lógica. Los motores se alimentan directamente desde la batería a través del TB6612FNG, sin pasar por el regulador.
+
+\subsection{Diagrama de conexiones en protoboard}
+
+\begin{enumerate}
+    \item \textbf{Batería (+)} → pin IN+ del módulo step-down \textbf{y} pin VM del TB6612FNG.
+    \item \textbf{Batería (−)} → riel GND común de la protoboard.
+    \item \textbf{Step-down OUT+} (5 V) → riel de 5 V de la protoboard.
+    \item \textbf{Riel 5 V} → pin VSYS del Pico W.
+    \item \textbf{Riel 5 V} → pin VCC de cada HC-SR04 (×3).
+    \item \textbf{Pin 3V3OUT del Pico W} → pin VCC del módulo GPS NEO-6M.
+    \item \textbf{Riel GND común} → GND de todos los componentes del sistema.
+\end{enumerate}
+
+\textbf{Nota crítica:} todos los componentes deben compartir el mismo GND (tierra común). Sin tierra común, las señales lógicas no tienen referencia y el sistema no funciona correctamente.
+
+\subsection{Estado de avance}
+
+\textbf{Diseño: 100\%.} El dimensionamiento está completo y el módulo step-down está incluido en el presupuesto.\\
+\textbf{Implementación física: pendiente} (sujeta a la adquisición del módulo).
 
 % ============================================================
 % CAPÍTULO 4 — DIAGRAMA DE BLOQUES DEL HARDWARE
