@@ -16,6 +16,7 @@
 \usepackage{longtable}
 \usepackage{float}
 \usepackage{enumitem}
+\usepackage{amssymb}
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \usepackage{caption}
@@ -53,7 +54,7 @@
 \begin{titlepage}
     \centering
     \vspace*{1cm}
-    \includegraphics[width=0.3\textwidth]{escudo_udea.png}\\[1.5cm]
+    \includegraphics[width=0.3\textwidth]{Escudo UdeA.jpg}\\[1.5cm]
     {\large \textbf{Electrónica Digital III}}\\[0.5cm]
     {\Huge \textbf{Avance del Proyecto Final}}\\[0.5cm]
     {\LARGE \textbf{SmartRoad Rover}}\\[1cm]
@@ -363,7 +364,7 @@ El regulador seleccionado (3 A) entrega un margen de seguridad mayor a 15:1 sobr
 
 \begin{enumerate}
     \item \textbf{Batería (+)} → pin IN+ del módulo step-down \textbf{y} pin VM del TB6612FNG.
-    \item \textbf{Batería (−)} → riel GND común de la protoboard.
+    \item \textbf{Batería (-)} → riel GND común de la protoboard.
     \item \textbf{Step-down OUT+} (5 V) → riel de 5 V de la protoboard.
     \item \textbf{Riel 5 V} → pin VSYS del Pico W.
     \item \textbf{Riel 5 V} → pin VCC de cada HC-SR04 (×3).
@@ -383,7 +384,98 @@ El regulador seleccionado (3 A) entrega un margen de seguridad mayor a 15:1 sobr
 % ============================================================
 \chapter{Diagrama de Bloques del Hardware}
 
-% Contenido por agregar en la siguiente pregunta
+\section{Decisión de diseño: un diagrama jerárquico en tres niveles}
+
+El hardware del sistema SmartRoad Rover integra cinco bloques funcionales (alimentación, sensado, procesamiento, actuación y comunicación), cada uno con señales, niveles de voltaje y protocolos propios. Presentar todo el detalle en un único diagrama produciría un esquema ilegible a escala de página. Por esta razón, y siguiendo la práctica estándar en diseño de sistemas embebidos, se adopta una \textbf{jerarquía de tres diagramas}:
+
+\begin{itemize}
+    \item \textbf{Diagrama 1 — Vista general (top-level):} muestra los cinco bloques principales y sus relaciones. No incluye pines ni señales individuales. Es el mapa unificador del sistema.
+    \item \textbf{Diagrama 2 — Bloque de sensado y acondicionamiento:} detalla los tres sensores HC-SR04, sus circuitos de adaptación de nivel lógico (divisores de tensión), el módulo GPS y la asignación de pines GPIO del Pico W.
+    \item \textbf{Diagrama 3 — Bloque de actuación y alimentación:} detalla el driver TB6612FNG, los dos motores DC, el sistema de alimentación con sus dos dominios de voltaje y la distribución de tierra común.
+\end{itemize}
+
+Esta estructura cumple con el requerimiento del enunciado: existe un diagrama que relaciona los demás (Diagrama 1) y cada diagrama de detalle está explicado textualmente en las secciones siguientes.
+Los diagramas fueron realizados con ayuda de Notebook LM.
+
+\section{Asignación de pines GPIO del Pico W}
+
+Antes de describir los diagramas, se fija la asignación definitiva de pines del microcontrolador. Esta tabla es la referencia para el firmware y para el montaje en protoboard:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|l|}
+\hline
+\textbf{Señal} & \textbf{GPIO} & \textbf{Pin físico} & \textbf{Dirección / Nota} \\
+\hline
+TRIG sensor frontal  & GP0  & 1  & Salida digital \\
+ECHO sensor frontal  & GP1  & 2  & Entrada — viene del divisor de tensión \\
+TRIG sensor izquierdo & GP2 & 4  & Salida digital \\
+ECHO sensor izquierdo & GP3 & 5  & Entrada — viene del divisor de tensión \\
+TRIG sensor derecho  & GP4  & 6  & Salida digital \\
+ECHO sensor derecho  & GP5  & 7  & Entrada — viene del divisor de tensión \\
+GPS TX → Pico RX     & GP9  & 12 & UART1 RX \\
+GPS RX → Pico TX     & GP8  & 11 & UART1 TX \\
+IN1 Motor A (izq.)   & GP10 & 14 & Salida digital — dirección \\
+IN2 Motor A (izq.)   & GP11 & 15 & Salida digital — dirección \\
+PWM Motor A (izq.)   & GP12 & 16 & Salida PWM — velocidad \\
+IN1 Motor B (der.)   & GP13 & 17 & Salida digital — dirección \\
+IN2 Motor B (der.)   & GP14 & 19 & Salida digital — dirección \\
+PWM Motor B (der.)   & GP15 & 20 & Salida PWM — velocidad \\
+STBY TB6612FNG       & GP16 & 21 & Salida digital — enable global \\
+\hline
+\end{tabular}
+\caption{Asignación definitiva de pines GPIO del Raspberry Pi Pico W}
+\end{table}
+
+\section{Diagrama 1 — Vista general del sistema}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\linewidth]{diagrama1_toplevel.png}
+    \caption{Diagrama de bloques top-level del sistema SmartRoad Rover}
+\end{figure}
+
+\textbf{Descripción:} el sistema se organiza alrededor del bloque de procesamiento central (Raspberry Pi Pico W). Este recibe señales del bloque de sensado (sensores ultrasónicos y GPS), genera señales de control hacia el bloque de actuación (driver de motores y motores DC), se comunica bidireccionalmente con el usuario a través del bloque de comunicación WiFi, y recibe energía del bloque de alimentación.
+
+Las relaciones entre bloques son:
+\begin{itemize}
+    \item \textbf{Alimentación → Procesamiento:} suministra 5 V regulados al pin VSYS del Pico W.
+    \item \textbf{Alimentación → Actuación:} suministra 7.4 V directos al pin VM del driver TB6612FNG.
+    \item \textbf{Sensado → Procesamiento:} entrega señales digitales de distancia (ECHO adaptado) y tramas NMEA del GPS vía UART.
+    \item \textbf{Procesamiento → Actuación:} genera señales PWM de velocidad y señales digitales de dirección hacia el driver.
+    \item \textbf{Procesamiento - Comunicación:} intercambio bidireccional vía WiFi 2.4 GHz para recepción de comandos del usuario y envío de estado del sistema.
+\end{itemize}
+
+\section{Diagrama 2 — Bloque de sensado y acondicionamiento}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\linewidth]{diagrama2_sensado.png}
+    \caption{Diagrama de bloques del bloque de sensado — HC-SR04 ×3, divisores de tensión y módulo GPS}
+\end{figure}
+
+\textbf{Descripción:} cada sensor HC-SR04 genera dos señales hacia el Pico W. La señal TRIG es una salida digital del microcontrolador de 3.3 V, compatible directamente con el umbral de entrada del sensor, por lo que va sin circuito intermedio. La señal ECHO regresa del sensor a 5 V lógicos y debe ser adaptada mediante el divisor de tensión (R1 = 1 k$\Omega$, R2 = 2 k$\Omega$) antes de llegar al GPIO de entrada del Pico W, garantizando 3.33 V en el nodo intermedio.
+
+El módulo GPS NEO-6M se comunica por UART a 3.3 V, compatible directamente con el Pico W. Su pin TX se conecta al GP9 (UART1 RX del Pico) y su pin RX al GP8 (UART1 TX). El GPS se alimenta desde el pin 3V3OUT del Pico W (3.3 V regulados internos).
+
+Los tres sensores ultrasónicos y el GPS comparten el riel GND común de la protoboard.
+
+\section{Diagrama 3 — Bloque de actuación y sistema de alimentación}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\linewidth]{diagrama3_actuacion.png}
+    \caption{Diagrama de bloques del bloque de actuación y sistema de alimentación}
+\end{figure}
+
+\textbf{Descripción:} el driver TB6612FNG recibe siete señales de control del Pico W: AIN1, AIN2 y PWMA para el motor izquierdo (Motor A); BIN1, BIN2 y PWMB para el motor derecho (Motor B); y STBY para habilitar o deshabilitar globalmente el driver. Las señales INx determinan la dirección de giro (avance, retroceso, frenado) y las señales PWM determinan la velocidad mediante ciclo de trabajo variable.
+
+El driver recibe su alimentación de potencia (pin VM) directamente desde la batería de 7.4 V, sin pasar por el regulador step-down. Su alimentación lógica (pin VCC) viene del pin 3V3OUT del Pico W (3.3 V).
+
+El sistema de alimentación distribuye la energía así: la batería alimenta en paralelo el pin VM del driver (7.4 V, dominio de potencia) y el módulo step-down (que regula a 5 V para el dominio de lógica). Desde el step-down se alimentan el Pico W (VSYS) y los tres sensores HC-SR04 (VCC). El GPS se alimenta desde el regulador interno del Pico W (3V3OUT).
+
+Todos los componentes comparten un GND común, condición indispensable para el correcto funcionamiento de las señales digitales entre bloques.
 
 % ============================================================
 % CAPÍTULO 5 — ARQUITECTURA DE SOFTWARE
