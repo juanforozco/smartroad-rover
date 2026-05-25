@@ -1,7 +1,3 @@
-# Firmware
-
-Aquí se almacenará el código del microcontrolador Raspberry Pi Pico W.
-
 # Firmware — SmartRoad Rover
 
 Código fuente del microcontrolador Raspberry Pi Pico W.
