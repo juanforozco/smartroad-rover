@@ -1,11 +1,29 @@
 # Documentos de entrega — SmartRoad Rover
 
-Esta carpeta contiene los documentos formales entregados durante el proceso de definición del proyecto final del curso **Electrónica Digital III**.
+Documentos formales entregados durante el desarrollo del proyecto final de Electrónica Digital III.
 
+---
+
+## Estructura
+
+### entregable1/
 | Archivo | Descripción |
 |---|---|
-| `Propuesta_PFinal_1000411042.pdf` | Propuesta inicial del proyecto (Ronda 1) |
-| `Propuesta_Ronda2_EDIII_1000411042.pdf` | Propuesta corregida y ampliada (Ronda 2) |
-| `Propuesta_Ronda2_EDIII_1000411042_CORREGIDO.pdf` | Versión final corregida con base en la retroalimentación del docente |
-| `Presupuesto.xlsx` | Estimación detallada de costos del proyecto (total: 312.000 COP) |
+| `Propuesta_PFinal_1000411042.pdf` | Propuesta inicial del proyecto — Ronda 1 |
 
+### entregable2/
+| Archivo | Descripción |
+|---|---|
+| `Propuesta_Ronda2_EDIII_1000411042.pdf` | Propuesta ampliada — Ronda 2 |
+| `Propuesta_Ronda2_EDIII_1000411042_CORREGIDO.pdf` | Versión corregida con base en retroalimentación del docente |
+
+### entregable3/
+| Archivo | Descripción |
+|---|---|
+| `main_entregable3.tex` | Informe formal del avance del proyecto (LaTeX) |
+| `README.md` | Índice del entregable 3 |
+
+### Raíz de docs/
+| Archivo | Descripción |
+|---|---|
+| `Presupuesto_SmartRoad_Rover.xlsx` | Estimación de costos del proyecto (total: 252.000 COP) |
