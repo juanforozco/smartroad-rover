@@ -780,8 +780,89 @@ Repeating timer 1 s & Periódica & Watchdog GPS — verifica timeout señal \\
 % CAPÍTULO 6 — MANEJO DEL REPOSITORIO
 % ============================================================
 \chapter{Manejo del Repositorio}
-
-% Contenido por agregar en la siguiente pregunta
+ 
+\section{Repositorio del proyecto}
+ 
+El repositorio del proyecto SmartRoad Rover se encuentra disponible en:
+ 
+\begin{center}
+\url{https://github.com/juanforozco/smartroad-rover}
+\end{center}
+ 
+El repositorio ha estado activo desde el inicio del proceso de definición del proyecto y ha sido actualizado de forma continua a lo largo de cada entregable, reflejando en todo momento el estado real del avance.
+ 
+\section{Estructura de carpetas}
+ 
+El repositorio está organizado en cuatro carpetas principales, cada una con su propio \texttt{README.md}:
+ 
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+\textbf{Carpeta} & \textbf{Contenido} \\
+\hline
+\texttt{docs/} & Documentos formales de entrega organizados por entregable en subcarpetas (\texttt{entregable1/}, \texttt{entregable2/}, \texttt{entregable3/}). Cada subcarpeta contiene el archivo fuente LaTeX y los PDFs generados. \\
+\hline
+\texttt{firmware/} & Código fuente del microcontrolador en C con el Pico SDK. Contendrá los archivos \texttt{.c} y \texttt{.h} de cada módulo (\texttt{sensors}, \texttt{motors}, \texttt{navigation}, \texttt{web\_server}, \texttt{gps}, \texttt{fsm}) junto con el \texttt{CMakeLists.txt}. \\
+\hline
+\texttt{hardware/} & Documentación del hardware: esquemático del circuito y tabla de asignación de pines del Pico W. \\
+\hline
+\texttt{images/} & Imágenes de la documentación: diagramas de bloques, FSM, diagramas de flujo y fotos del prototipo. \\
+\hline
+\end{tabular}
+\caption{Estructura de carpetas del repositorio}
+\end{table}
+ 
+\section{Estrategia de ramas}
+ 
+El repositorio trabaja con dos ramas principales:
+ 
+\begin{itemize}
+    \item \textbf{main:} rama de producción. Solo recibe commits cuando un entregable o funcionalidad está completamente terminada y verificada. Refleja el estado oficial y estable del proyecto en todo momento.
+    \item \textbf{dev:} rama de desarrollo activo. Aquí se trabajan los cambios, se agregan documentos en progreso y se desarrolla el firmware antes de integrarlo a \texttt{main}. Una vez verificado, se realiza un merge a \texttt{main} mediante pull request.
+\end{itemize}
+ 
+Esta estrategia garantiza que \texttt{main} siempre tenga un estado coherente y presentable, mientras que \texttt{dev} refleja el trabajo en curso sin afectar la versión oficial.
+ 
+\section{Convención de mensajes de commit}
+ 
+Se usa una convención de prefijos para que el historial sea legible y trazable:
+ 
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+\textbf{Prefijo} & \textbf{Uso} \\
+\hline
+\texttt{docs:} & Cambios en documentación y entregables \\
+\texttt{firmware:} & Código del microcontrolador \\
+\texttt{hardware:} & Esquemáticos y asignación de pines \\
+\texttt{fix:} & Correcciones de cualquier tipo \\
+\texttt{refactor:} & Reorganización sin cambio de funcionalidad \\
+\hline
+\end{tabular}
+\caption{Convención de mensajes de commit}
+\end{table}
+ 
+Ejemplos del historial actual: \textit{"docs: agregar capítulo 5 - arquitectura de software"}, \textit{"docs: correcciones ronda 2 basadas en retroalimentación docente"}, \textit{"docs: crear estructura entregable 3"}.
+ 
+\section{Integración con VS Code y Pico SDK}
+ 
+Durante la fase de implementación del firmware, el flujo de trabajo será el siguiente: el repositorio se clona localmente, VS Code abre directamente la carpeta del repositorio como espacio de trabajo, y la extensión oficial de Raspberry Pi Pico se configura apuntando a esa misma carpeta. Esto permite editar el código, compilar con el Pico SDK y realizar commits y push a GitHub, todo desde VS Code sin necesidad de alternar entre herramientas. El archivo \texttt{CMakeLists.txt} del proyecto estará en \texttt{firmware/} y cada módulo tendrá su propio archivo fuente, coherente con la arquitectura modular descrita en el Capítulo 5.
+ 
+\section{Estado actual del repositorio}
+ 
+El repositorio refleja el avance real del proyecto en cada una de sus secciones:
+ 
+\begin{itemize}
+    \item \texttt{docs/}: documentos de los tres entregables subidos y organizados por subcarpeta.
+    \item \texttt{images/}: diagramas de bloques (top-level, sensado, actuación), FSM principal y diagrama de flujo del modo autónomo reactivo.
+    \item \texttt{firmware/}: carpeta preparada con su \texttt{README.md} describiendo la estructura modular planificada, lista para recibir el código de implementación.
+    \item \texttt{hardware/}: esquemático y tabla de pines documentados.
+    \item \texttt{README.md} principal: actualizado con descripción completa del sistema, modos de operación, requisitos, escenario de pruebas y presupuesto vigente (252.000 COP).
+\end{itemize}
 
 % ============================================================
 % REFERENCIAS
