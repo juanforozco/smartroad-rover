@@ -481,9 +481,323 @@ Todos los componentes comparten un GND común, condición indispensable para el 
 % CAPÍTULO 5 — ARQUITECTURA DE SOFTWARE
 % ============================================================
 \chapter{Arquitectura de Software}
-
-% Contenido por agregar en la siguiente pregunta
-
+ 
+\section{Visión general y decisiones de diseño}
+ 
+El firmware del SmartRoad Rover se implementa en \textbf{C utilizando el Pico SDK oficial} de Raspberry Pi. La arquitectura adopta el paradigma \textbf{Polling + IRQ} exigido por el curso, donde las operaciones de tiempo crítico se manejan mediante interrupciones de hardware y la lógica de navegación y gestión de modos opera en el loop principal mediante polling. No se usa un sistema operativo en tiempo real (RTOS); en su lugar, el diseño explota correctamente los periféricos de hardware del RP2040 para lograr comportamiento determinista sin bloquear el CPU.
+ 
+El código está organizado en \textbf{módulos funcionales independientes}, cada uno con su propio archivo fuente \texttt{.c} y su cabecera \texttt{.h}. Esta estructura facilita la depuración, el testing por módulo y el manejo del repositorio Git.
+ 
+\section{Estructura modular del firmware}
+ 
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Archivo} & \textbf{Cabecera} & \textbf{Responsabilidad} \\
+\hline
+\texttt{main.c} & — & Loop principal, inicialización del sistema, despacho de la FSM \\
+\texttt{sensors.c} & \texttt{sensors.h} & Disparo de TRIG, ISR de ECHO, cálculo de distancia, filtrado \\
+\texttt{motors.c} & \texttt{motors.h} & Control PWM de velocidad y dirección, abstracción del TB6612FNG \\
+\texttt{navigation.c} & \texttt{navigation.h} & Lógica de evasión autónoma, algoritmo de selección de giro \\
+\texttt{web\_server.c} & \texttt{web\_server.h} & Servidor HTTP embebido, parsing de comandos, watchdog WiFi \\
+\texttt{gps.c} & \texttt{gps.h} & Recepción UART con DMA, parsing NMEA, cálculo de rumbo \\
+\texttt{fsm.c} & \texttt{fsm.h} & Máquina de estados, transiciones, gestión de contingencias \\
+\hline
+\end{tabular}
+\caption{Estructura modular del firmware}
+\end{table}
+ 
+\section{Flujo de programa: Polling + IRQ}
+ 
+El flujo de programa sigue estrictamente el paradigma polling + interrupciones. El CPU nunca bloquea esperando eventos de hardware; en su lugar, los periféricos notifican al CPU mediante interrupciones y el CPU consulta el estado de los módulos en cada ciclo del loop.
+ 
+\begin{itemize}
+    \item \textbf{IRQ (interrupciones):} medición de tiempo de vuelo de sensores HC-SR04, recepción UART del GPS (asistida por DMA), detección de timeout del watchdog WiFi.
+    \item \textbf{Polling:} lectura del resultado de las mediciones de sensores (ya calculadas por la ISR), ejecución de la lógica de navegación, despacho de la FSM, servicio de peticiones HTTP del servidor web.
+\end{itemize}
+ 
+\section{Máquina de estados (FSM)}
+ 
+El sistema implementa una \textbf{FSM} (\textit{Finite State Machine}) principal con los siguientes estados:
+ 
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+\textbf{Estado} & \textbf{Descripción} \\
+\hline
+\texttt{STATE\_INIT} & Inicialización de periféricos, WiFi, UART, PWM, GPIO. Transita automáticamente al primer estado seleccionado por el usuario. \\
+\texttt{STATE\_MANUAL} & Ejecución de comandos recibidos por el servidor web. Watchdog activo. \\
+\texttt{STATE\_AUTO\_REACTIVE} & Ciclo de polling de sensores + IRQ + lógica de evasión. \\
+\texttt{STATE\_AUTO\_GPS} & Navegación hacia coordenada objetivo + evasión activa. DMA GPS activo. \\
+\texttt{STATE\_SAFE\_STOP} & Detención de emergencia. Motores en cero. Espera comando de recuperación. \\
+\hline
+\end{tabular}
+\caption{Estados de la FSM principal}
+\end{table}
+ 
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.7\linewidth]{fsm_principal.png}
+    \caption{Diagrama FSM principal del sistema SmartRoad Rover}
+\end{figure}
+ 
+La implementación en C usa un \texttt{enum} y un \texttt{switch-case} en el loop principal:
+ 
+\begin{lstlisting}[style=cstyle]
+typedef enum {
+    STATE_INIT,
+    STATE_MANUAL,
+    STATE_AUTO_REACTIVE,
+    STATE_AUTO_GPS,
+    STATE_SAFE_STOP
+} system_state_t;
+ 
+volatile system_state_t current_state = STATE_INIT;
+ 
+int main(void) {
+    system_init();
+    while (true) {
+        switch (current_state) {
+            case STATE_INIT:         fsm_init();          break;
+            case STATE_MANUAL:       fsm_manual();        break;
+            case STATE_AUTO_REACTIVE:fsm_auto_reactive(); break;
+            case STATE_AUTO_GPS:     fsm_auto_gps();      break;
+            case STATE_SAFE_STOP:    fsm_safe_stop();     break;
+        }
+    }
+}
+\end{lstlisting}
+ 
+\section{Módulo de sensores — \texttt{sensors.c}}
+ 
+\subsection{Principio de funcionamiento}
+ 
+La medición de distancia con el HC-SR04 requiere medir el tiempo entre el flanco de subida y el flanco de bajada de la señal ECHO con precisión de microsegundos. En C con Pico SDK esto se implementa con \textbf{interrupciones GPIO en ambos flancos}:
+ 
+\begin{lstlisting}[style=cstyle]
+/* ISR compartida para los 3 sensores HC-SR04 */
+void echo_irq_handler(uint gpio, uint32_t events) {
+    uint32_t now = time_us_32();
+    uint8_t idx = gpio_to_sensor_index(gpio);
+ 
+    if (events & GPIO_IRQ_EDGE_RISE) {
+        sensor_data[idx].t_rise = now;
+    }
+    if (events & GPIO_IRQ_EDGE_FALL) {
+        uint32_t pulse_us = now - sensor_data[idx].t_rise;
+        /* dist (cm) = tiempo_us * velocidad_sonido / 2 */
+        sensor_data[idx].distance_cm = (pulse_us * 17) / 1000;
+        sensor_data[idx].valid = true;
+    }
+}
+\end{lstlisting}
+ 
+\subsection{Filtrado de lecturas espurias (RNF-9)}
+ 
+Para cumplir RNF-9, cada canal de sensor mantiene un buffer circular de 3 lecturas. La distancia reportada es la mediana de las tres últimas mediciones válidas. Esto descarta picos por reflexiones irregulares sin introducir latencia significativa:
+ 
+\begin{lstlisting}[style=cstyle]
+typedef struct {
+    uint32_t t_rise;
+    uint16_t distance_cm;
+    uint16_t buffer[SENSOR_BUF_SIZE]; /* buffer circular */
+    uint8_t  buf_idx;
+    bool     valid;
+} sensor_channel_t;
+ 
+uint16_t sensors_get_filtered(uint8_t idx) {
+    return median3(sensor_data[idx].buffer);
+}
+\end{lstlisting}
+ 
+\subsection{Disparo de TRIG (polling)}
+ 
+El disparo del pulso TRIG es síncrono y se realiza desde el loop principal mediante polling. El tiempo de espera de 10 µs se implementa con \texttt{busy\_wait\_us(10)} del SDK, que es determinista y no bloquea el sistema de interrupciones:
+ 
+\begin{lstlisting}[style=cstyle]
+void sensors_trigger_all(void) {
+    const uint trig_pins[] = {GP0, GP2, GP4};
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        gpio_put(trig_pins[i], 1);
+        busy_wait_us(10);
+        gpio_put(trig_pins[i], 0);
+    }
+}
+\end{lstlisting}
+ 
+\section{Módulo de motores — \texttt{motors.c}}
+ 
+El control de velocidad usa \textbf{PWM de hardware} del RP2040 a través del SDK. Cada motor tiene asignado un slice PWM independiente. La frecuencia de PWM se configura a 20 kHz (inaudible y adecuada para motores DC pequeños):
+ 
+\begin{lstlisting}[style=cstyle]
+void motors_init(void) {
+    /* Motor A: GP12 - Motor B: GP15 */
+    gpio_set_function(GP12, GPIO_FUNC_PWM);
+    gpio_set_function(GP15, GPIO_FUNC_PWM);
+    uint slice_a = pwm_gpio_to_slice_num(GP12);
+    uint slice_b = pwm_gpio_to_slice_num(GP15);
+    pwm_config cfg = pwm_get_default_config();
+    pwm_config_set_clkdiv(&cfg, 6.25f);   /* 20 kHz */
+    pwm_config_set_wrap(&cfg, 999);        /* resolucion 0-999 */
+    pwm_init(slice_a, &cfg, true);
+    pwm_init(slice_b, &cfg, true);
+}
+ 
+void motors_set(motor_dir_t dir_a, uint16_t speed_a,
+                motor_dir_t dir_b, uint16_t speed_b) {
+    gpio_put(GP10, (dir_a == FORWARD) ? 1 : 0);
+    gpio_put(GP11, (dir_a == FORWARD) ? 0 : 1);
+    gpio_put(GP13, (dir_b == FORWARD) ? 1 : 0);
+    gpio_put(GP14, (dir_b == FORWARD) ? 0 : 1);
+    pwm_set_gpio_level(GP12, speed_a);
+    pwm_set_gpio_level(GP15, speed_b);
+}
+\end{lstlisting}
+ 
+\section{Módulo de navegación — \texttt{navigation.c}}
+ 
+Implementa el algoritmo de evasión autónoma. Se ejecuta en el loop principal (polling) consumiendo los datos ya calculados por las ISR de sensores. No bloquea:
+ 
+\begin{lstlisting}[style=cstyle]
+void navigation_step(void) {
+    uint16_t front = sensors_get_filtered(FRONT);
+    uint16_t left  = sensors_get_filtered(LEFT);
+    uint16_t right = sensors_get_filtered(RIGHT);
+ 
+    if (front > OBSTACLE_THRESHOLD_CM) {
+        motors_set(FORWARD, SPEED_FULL, FORWARD, SPEED_FULL);
+    } else {
+        motors_set(STOP, 0, STOP, 0);
+        busy_wait_ms(50);          /* pausa breve, no bloqueante para IRQ */
+        if (left >= right) {
+            motors_set(REVERSE, SPEED_TURN, FORWARD, SPEED_TURN);
+        } else {
+            motors_set(FORWARD, SPEED_TURN, REVERSE, SPEED_TURN);
+        }
+        busy_wait_ms(300);
+    }
+}
+\end{lstlisting}
+ 
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.80\linewidth]{flowchart_auto_reactive.png}
+    \caption{Diagrama de flujo — modo autónomo reactivo (Polling + IRQ)}
+\end{figure}
+ 
+\section{Módulo GPS con DMA — \texttt{gps.c}}
+ 
+\subsection{Uso de DMA (reporte explícito)}
+ 
+El módulo GPS usa \textbf{DMA} para la recepción de tramas NMEA por UART1. El DMA transfiere bytes del registro de datos de UART1 a un buffer circular en RAM sin intervención del CPU. Cuando el DMA completa un bloque (o cuando la ISR de UART detecta el carácter \texttt{`\textbackslash n'} que termina una trama NMEA), se activa una interrupción de DMA que señaliza al loop principal que hay una trama lista para procesar:
+ 
+\begin{lstlisting}[style=cstyle]
+void gps_init(void) {
+    uart_init(UART_GPS, GPS_BAUD);
+    gpio_set_function(GP8, GPIO_FUNC_UART); /* TX */
+    gpio_set_function(GP9, GPIO_FUNC_UART); /* RX */
+ 
+    dma_channel = dma_claim_unused_channel(true);
+    dma_channel_config cfg = dma_channel_get_default_config(dma_channel);
+    channel_config_set_transfer_data_size(&cfg, DMA_SIZE_8);
+    channel_config_set_read_increment(&cfg, false);
+    channel_config_set_write_increment(&cfg, true);
+    channel_config_set_dreq(&cfg, DREQ_UART1_RX);
+ 
+    dma_channel_configure(dma_channel, &cfg,
+        gps_buffer,              /* destino: buffer en RAM */
+        &uart_get_hw(UART_GPS)->dr, /* fuente: registro UART */
+        GPS_BUF_SIZE,
+        true);
+    dma_channel_set_irq0_enabled(dma_channel, true);
+    irq_set_exclusive_handler(DMA_IRQ_0, gps_dma_irq_handler);
+    irq_set_enabled(DMA_IRQ_0, true);
+}
+\end{lstlisting}
+ 
+\subsection{Watchdog de señal GPS (RNF-6)}
+ 
+Un timer de hardware del RP2040 registra el timestamp de la última trama NMEA válida recibida. El loop principal verifica en cada ciclo si han transcurrido más de 3 segundos sin trama válida y, de ser así, activa la transición de contingencia a \texttt{STATE\_SAFE\_STOP} seguido de \texttt{STATE\_AUTO\_REACTIVE}:
+ 
+\begin{lstlisting}[style=cstyle]
+bool gps_signal_valid(void) {
+    return (time_us_64() - gps_last_valid_us) < GPS_TIMEOUT_US;
+}
+\end{lstlisting}
+ 
+\section{Módulo servidor web — \texttt{web\_server.c}}
+ 
+Implementa un servidor HTTP embebido sobre el stack lwIP del Pico W SDK. Sirve una página HTML con controles de movimiento. El parsing de comandos es no bloqueante: usa el modelo de callbacks de lwIP, que notifica al loop principal cuando hay datos disponibles, sin que el CPU espere activamente.
+ 
+\subsection{Watchdog WiFi (RNF-5)}
+ 
+Un timer de hardware cuenta el tiempo desde el último comando HTTP recibido. Si supera 500 ms, el sistema ejecuta \texttt{motors\_stop()} y transita a \texttt{STATE\_SAFE\_STOP}:
+ 
+\begin{lstlisting}[style=cstyle]
+static repeating_timer_t wifi_watchdog_timer;
+ 
+bool wifi_watchdog_callback(repeating_timer_t *t) {
+    uint64_t now = time_us_64();
+    if ((now - last_cmd_timestamp_us) > WIFI_TIMEOUT_US) {
+        motors_set(STOP, 0, STOP, 0);
+        current_state = STATE_SAFE_STOP;
+    }
+    return true; /* mantener el timer activo */
+}
+\end{lstlisting}
+ 
+\section{Identificación de interrupciones del sistema}
+ 
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|l|l|p{6cm}|}
+\hline
+\textbf{Fuente IRQ} & \textbf{Tipo} & \textbf{Acción en el handler} \\
+\hline
+GPIO GP1 (ECHO frontal) & Flanco ↑ y ↓ & Captura \texttt{time\_us\_32()}, calcula distancia \\
+GPIO GP3 (ECHO izq.) & Flanco ↑ y ↓ & Ídem \\
+GPIO GP5 (ECHO der.) & Flanco ↑ y ↓ & Ídem \\
+DMA\_IRQ\_0 & Transferencia completa & Señaliza trama GPS disponible, recarga DMA \\
+Repeating timer (WiFi WD) & Periódica 100 ms & Verifica timeout de último comando HTTP \\
+Repeating timer (GPS WD) & Periódica 1 s & Verifica timeout de señal GPS \\
+\hline
+\end{tabular}
+\caption{Inventario de interrupciones del firmware}
+\end{table}
+ 
+\section{Reporte de uso de DMA y máquinas de estado}
+ 
+\begin{itemize}
+    \item \textbf{DMA:} se usa \textbf{un canal DMA} para la recepción de tramas NMEA del módulo GPS por UART1. Esto libera completamente al CPU de la recepción byte a byte, reduciendo la carga de procesamiento en el dominio GPS y garantizando que ninguna trama se pierda aunque el CPU esté ejecutando lógica de navegación.
+    \item \textbf{Máquina de estados:} se implementa \textbf{una FSM principal} con 5 estados (\texttt{STATE\_INIT}, \texttt{STATE\_MANUAL}, \texttt{STATE\_AUTO\_REACTIVE}, \texttt{STATE\_AUTO\_GPS}, \texttt{STATE\_SAFE\_STOP}), gestionada en \texttt{fsm.c}. La variable de estado es \texttt{volatile} para garantizar visibilidad entre el contexto de interrupción y el loop principal.
+\end{itemize}
+ 
+\section{Librerías del Pico SDK utilizadas}
+ 
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+\textbf{Librería SDK} & \textbf{Uso en el proyecto} \\
+\hline
+\texttt{pico/stdlib.h} & Funciones base, delays, stdio \\
+\texttt{hardware/gpio.h} & Configuración de pines, IRQ de GPIO \\
+\texttt{hardware/pwm.h} & Control PWM de motores (GP12, GP15) \\
+\texttt{hardware/uart.h} & Comunicación UART con módulo GPS \\
+\texttt{hardware/dma.h} & Canal DMA para recepción GPS \\
+\texttt{hardware/timer.h} & \texttt{time\_us\_32()}, \texttt{time\_us\_64()}, repeating timers \\
+\texttt{pico/cyw43\_arch.h} & WiFi del Pico W (chip CYW43439) \\
+\texttt{lwip/tcp.h} & Stack TCP/IP para servidor HTTP embebido \\
+\hline
+\end{tabular}
+\caption{Librerías del Pico SDK empleadas en el firmware}
+\end{table}
 % ============================================================
 % CAPÍTULO 6 — MANEJO DEL REPOSITORIO
 % ============================================================
