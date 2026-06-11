@@ -1,10 +1,10 @@
 /**
  * @file smartroad-rover.c
- * @brief Prueba del modulo de motores — SmartRoad Rover
+ * @brief Prueba del modulo de sensores — SmartRoad Rover
  *
- * Prueba secuencial de todas las funciones del modulo motors:
- * adelante, atras, giro izquierda, giro derecha y stop.
- * Verificar visualmente que cada movimiento es correcto.
+ * Lee los tres sensores HC-SR04 y muestra las distancias
+ * por el monitor serial cada 500ms.
+ * Verificar que las lecturas son coherentes con la realidad fisica.
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -12,62 +12,44 @@
 
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "motors.h"
+#include "sensors.h"
 
 int main(void) {
-    /* Inicializar stdio para debug por USB */
     stdio_init_all();
-    sleep_ms(2000); /* Esperar a que el puerto USB se estabilice */
+    sleep_ms(2000);
 
-    printf("=== SmartRoad Rover — Prueba de motores ===\n");
+    printf("=== SmartRoad Rover — Prueba de sensores ===\n");
 
-    /* Inicializar modulo de motores */
-    motors_init();
-    printf("Motores inicializados.\n");
+    sensors_init();
+    printf("Sensores inicializados.\n\n");
 
     while (true) {
+        /* Disparar los tres sensores */
+        sensors_trigger();
 
-        /* --- Adelante --- */
-        printf("ADELANTE...\n");
-        motors_forward(MOTORS_SPEED_FULL);
-        sleep_ms(2000);
+        /* Esperar a que lleguen los ecos (max ~30ms para 5m) */
+        sleep_ms(SENSOR_TRIGGER_WAIT_MS);
 
-        /* --- Stop --- */
-        printf("STOP...\n");
-        motors_stop();
-        sleep_ms(1000);
+        /* Leer distancias filtradas */
+        uint16_t dist_right  = sensors_get_distance(SENSOR_RIGHT);
+        uint16_t dist_center = sensors_get_distance(SENSOR_CENTER);
+        uint16_t dist_left   = sensors_get_distance(SENSOR_LEFT);
 
-        /* --- Atras --- */
-        printf("ATRAS...\n");
-        motors_reverse(MOTORS_SPEED_FULL);
-        sleep_ms(2000);
+        /* Mostrar por serial */
+        printf("IZQ: %3d cm | CENTRO: %3d cm | DER: %3d cm",
+               dist_left, dist_center, dist_right);
 
-        /* --- Stop --- */
-        printf("STOP...\n");
-        motors_stop();
-        sleep_ms(1000);
+        /* Indicar si hay obstaculo */
+        if (sensors_all_blocked()) {
+            printf("  [!!! BLOQUEADO TOTAL !!!]");
+        } else {
+            if (sensors_obstacle_detected(SENSOR_LEFT))   printf("  [OBS IZQ]");
+            if (sensors_obstacle_detected(SENSOR_CENTER)) printf("  [OBS CENTRO]");
+            if (sensors_obstacle_detected(SENSOR_RIGHT))  printf("  [OBS DER]");
+        }
+        printf("\n");
 
-        /* --- Giro izquierda --- */
-        printf("GIRO IZQUIERDA...\n");
-        motors_turn_left(MOTORS_SPEED_TURN);
-        sleep_ms(1000);
-
-        /* --- Stop --- */
-        printf("STOP...\n");
-        motors_stop();
-        sleep_ms(1000);
-
-        /* --- Giro derecha --- */
-        printf("GIRO DERECHA...\n");
-        motors_turn_right(MOTORS_SPEED_TURN);
-        sleep_ms(1000);
-
-        /* --- Stop --- */
-        printf("STOP...\n");
-        motors_stop();
-        sleep_ms(2000);
-
-        printf("--- Ciclo completo, repitiendo ---\n\n");
+        sleep_ms(500);
     }
 
     return 0;
