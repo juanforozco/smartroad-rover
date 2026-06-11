@@ -2,12 +2,13 @@
  * @file navigation.h
  * @brief Logica de navegacion autonoma reactiva
  *
- * v3 - Mejoras:
- *   - Deteccion lateral activa con umbral propio
- *   - Umbral frontal reducido a 15cm
- *   - Umbral lateral en 20cm
- *   - Limpieza de buffer post-giro (3 ciclos de trigger)
- *   - Velocidad avance mayor que velocidad giro
+ * v4 - Prioridad absoluta al sensor frontal:
+ *   - Si frontal libre → avanzar siempre
+ *   - Si frontal bloqueado → retroceder + giro 90°
+ *   - Laterales solo corrigen levemente cuando frontal esta libre
+ *     y el obstaculo lateral esta muy cerca (10cm)
+ *   - Sensores a 90° del frontal: detectan paredes paralelas
+ *     al movimiento, no obstaculos que bloqueen el avance
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -26,31 +27,36 @@
 /** @brief Velocidad de avance normal (0-999) */
 #define NAV_SPEED_FORWARD           650
 
-/** @brief Velocidad durante maniobras de evasion (0-999) */
-#define NAV_SPEED_MANEUVER          480
-
-/** @brief Velocidad de giro (0-999) — menor que avance */
+/** @brief Velocidad de giro principal (0-999) */
 #define NAV_SPEED_TURN              520
 
-/** @brief Velocidad de retroceso en contingencia (0-999) */
+/** @brief Velocidad de retroceso (0-999) */
 #define NAV_SPEED_REVERSE           450
 
-/** @brief Umbral de deteccion frontal en cm */
+/** @brief Velocidad de correccion lateral suave (0-999) */
+#define NAV_SPEED_CORRECTION        480
+
+/** @brief Umbral de deteccion FRONTAL en cm */
 #define NAV_OBSTACLE_FRONT_CM       15
 
-/** @brief Umbral de deteccion lateral en cm */
-#define NAV_OBSTACLE_SIDE_CM        20
+/** @brief Umbral de deteccion LATERAL en cm
+ *  Bajo (10cm) porque los sensores laterales estan a 90 grados
+ *  y solo deben actuar cuando hay contacto inminente */
+#define NAV_OBSTACLE_SIDE_CM        10
 
-/** @brief Tiempo de giro en maniobra de evasion (ms) */
-#define NAV_TURN_TIME_MS            500
+/** @brief Tiempo de retroceso antes de girar (ms) */
+#define NAV_REVERSE_TIME_MS         350
 
-/** @brief Tiempo de retroceso en contingencia (ms) */
-#define NAV_REVERSE_TIME_MS         400
+/** @brief Tiempo de giro principal ~90 grados (ms) */
+#define NAV_TURN_90_MS              600
 
-/** @brief Ciclos de trigger para limpiar buffer post-giro */
+/** @brief Tiempo de correccion lateral suave (ms) */
+#define NAV_CORRECTION_TIME_MS      200
+
+/** @brief Ciclos de flush del buffer post-maniobra */
 #define NAV_BUFFER_FLUSH_CYCLES      3
 
-/** @brief Confirmaciones consecutivas requeridas para actuar */
+/** @brief Confirmaciones para obstaculo frontal */
 #define NAV_CONFIRM_COUNT            2
 
 /* =========================================================

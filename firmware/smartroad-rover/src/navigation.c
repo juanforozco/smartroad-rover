@@ -1,17 +1,20 @@
 /**
  * @file navigation.c
- * @brief Implementacion de la navegacion autonoma reactiva v3
+ * @brief Implementacion de la navegacion autonoma reactiva v4
  *
- * Cambios respecto a v2:
- *   - Deteccion lateral activa: si sensor izq o der detecta obstaculo
- *     cercano, el rover frena y evade hacia el lado contrario
- *   - Umbral frontal: 15cm (mas ajustado)
- *   - Umbral lateral: 20cm (mayor para reaccionar antes del choque)
- *   - Limpieza de buffer post-giro: se ejecutan NAV_BUFFER_FLUSH_CYCLES
- *     ciclos de trigger+espera para que el filtro de mediana se actualice
- *     con lecturas frescas antes de volver a evaluar
- *   - Velocidad avance (650) > velocidad giro (520) para movimiento
- *     mas natural y controlado
+ * Arquitectura de decision (por orden de prioridad):
+ *
+ *   PRIORIDAD 1: Todos bloqueados → contingencia (retroceder + girar)
+ *   PRIORIDAD 2: Frontal bloqueado → retroceder + girar 90° al lado libre
+ *   PRIORIDAD 3: Frontal LIBRE + lateral muy cerca → correccion suave
+ *   PRIORIDAD 4: Todo libre → avanzar
+ *
+ * Razon de la prioridad frontal:
+ *   Los sensores laterales apuntan a 90° respecto al frontal.
+ *   Una pared lateral NO bloquea el avance frontal. Si el camino
+ *   adelante esta libre, el rover puede avanzar aunque detecte
+ *   algo a los costados. Solo se corrige lateralmente cuando el
+ *   obstaculo esta a menos de 10cm (contacto inminente).
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -35,13 +38,12 @@ static uint8_t obstacle_confirm_count = 0;
  * ========================================================= */
 
 /**
- * @brief Ejecuta N ciclos de trigger para limpiar el buffer de mediana
+ * @brief Limpia el buffer de mediana ejecutando N ciclos de trigger
  *
- * Despues de una maniobra, el buffer puede contener lecturas del
- * obstaculo anterior. Esta funcion fuerza N nuevas lecturas para
- * que la mediana refleje la situacion actual antes de decidir.
+ * Fuerza N lecturas nuevas para que la mediana refleje
+ * la situacion actual tras una maniobra.
  *
- * @param cycles Numero de ciclos de trigger a ejecutar
+ * @param cycles Numero de ciclos
  */
 static void flush_sensor_buffer(uint8_t cycles) {
     for (uint8_t i = 0; i < cycles; i++) {
@@ -56,7 +58,9 @@ static void flush_sensor_buffer(uint8_t cycles) {
 
 void navigation_init(void) {
     obstacle_confirm_count = 0;
-    printf("[NAV] Modulo de navegacion v3 inicializado.\n");
+    printf("[NAV] Navegacion autonoma v4 lista.\n");
+    printf("[NAV] Frontal: %dcm | Lateral: %dcm\n",
+           NAV_OBSTACLE_FRONT_CM, NAV_OBSTACLE_SIDE_CM);
 }
 
 bool navigation_step(void) {
@@ -66,81 +70,88 @@ bool navigation_step(void) {
     uint16_t dist_left   = sensors_get_distance(SENSOR_LEFT);
     uint16_t dist_right  = sensors_get_distance(SENSOR_RIGHT);
 
-    /* --- Caso de contingencia: todos los sensores bloqueados --- */
+    /* ======================================================
+     * PRIORIDAD 1: Contingencia — todos los sensores bloqueados
+     * ====================================================== */
     if (sensors_all_blocked()) {
         obstacle_confirm_count = 0;
-        printf("[NAV] Bloqueado total — retrocediendo\n");
+        printf("[NAV] Bloqueado total — retrocediendo y girando\n");
         motors_reverse(NAV_SPEED_REVERSE);
         sleep_ms(NAV_REVERSE_TIME_MS);
         motors_stop();
         sleep_ms(50);
         motors_turn_right(NAV_SPEED_TURN);
-        sleep_ms(NAV_TURN_TIME_MS);
+        sleep_ms(NAV_TURN_90_MS);
         motors_stop();
         flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
         return true;
     }
 
-    /* --- Deteccion lateral izquierda --- */
-    if (dist_left < NAV_OBSTACLE_SIDE_CM) {
-        obstacle_confirm_count = 0;
-        printf("[NAV] Obstaculo lateral izquierdo (%d cm) — girando derecha\n",
-               dist_left);
-        motors_stop();
-        sleep_ms(50);
-        motors_turn_right(NAV_SPEED_TURN);
-        sleep_ms(NAV_TURN_TIME_MS);
-        motors_stop();
-        flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
-        return true;
-    }
-
-    /* --- Deteccion lateral derecha --- */
-    if (dist_right < NAV_OBSTACLE_SIDE_CM) {
-        obstacle_confirm_count = 0;
-        printf("[NAV] Obstaculo lateral derecho (%d cm) — girando izquierda\n",
-               dist_right);
-        motors_stop();
-        sleep_ms(50);
-        motors_turn_left(NAV_SPEED_TURN);
-        sleep_ms(NAV_TURN_TIME_MS);
-        motors_stop();
-        flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
-        return true;
-    }
-
-    /* --- Confirmacion de obstaculo frontal --- */
+    /* ======================================================
+     * PRIORIDAD 2: Obstaculo frontal confirmado
+     * ====================================================== */
     if (dist_center < NAV_OBSTACLE_FRONT_CM) {
         obstacle_confirm_count++;
     } else {
         obstacle_confirm_count = 0;
     }
 
-    /* --- Actuar solo si se confirmo el obstaculo frontal --- */
     if (obstacle_confirm_count >= NAV_CONFIRM_COUNT) {
         obstacle_confirm_count = 0;
+
+        /* Retroceder antes de girar para tener espacio */
+        printf("[NAV] Frontal bloqueado (%dcm) — retrocediendo\n", dist_center);
+        motors_reverse(NAV_SPEED_REVERSE);
+        sleep_ms(NAV_REVERSE_TIME_MS);
         motors_stop();
         sleep_ms(50);
 
-        /* Girar hacia lado con mas espacio */
+        /* Girar ~90° hacia el lado con mas espacio */
         if (dist_left >= dist_right) {
-            printf("[NAV] Obstaculo frontal — girando izquierda (izq:%d der:%d)\n",
+            printf("[NAV] Girando izquierda (izq:%d der:%d)\n",
                    dist_left, dist_right);
             motors_turn_left(NAV_SPEED_TURN);
         } else {
-            printf("[NAV] Obstaculo frontal — girando derecha (izq:%d der:%d)\n",
+            printf("[NAV] Girando derecha (izq:%d der:%d)\n",
                    dist_left, dist_right);
             motors_turn_right(NAV_SPEED_TURN);
         }
-        sleep_ms(NAV_TURN_TIME_MS);
+        sleep_ms(NAV_TURN_90_MS);
         motors_stop();
 
-        /* Limpiar buffer antes de re-evaluar */
+        /* Limpiar buffer para re-evaluar con lecturas frescas */
         flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
         return true;
     }
 
-    /* --- Camino libre: avanzar --- */
+    /* ======================================================
+     * PRIORIDAD 3: Frontal LIBRE — correccion lateral suave
+     * Solo actua si el obstaculo lateral esta muy cerca (10cm)
+     * El rover puede avanzar: solo corrige la trayectoria
+     * ====================================================== */
+    if (dist_left < NAV_OBSTACLE_SIDE_CM) {
+        /* Pared muy cerca a la izquierda: corregir levemente a la derecha */
+        printf("[NAV] Correccion derecha por pared izq (%dcm)\n", dist_left);
+        motors_turn_right(NAV_SPEED_CORRECTION);
+        sleep_ms(NAV_CORRECTION_TIME_MS);
+        motors_stop();
+        flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
+        return true;
+    }
+
+    if (dist_right < NAV_OBSTACLE_SIDE_CM) {
+        /* Pared muy cerca a la derecha: corregir levemente a la izquierda */
+        printf("[NAV] Correccion izquierda por pared der (%dcm)\n", dist_right);
+        motors_turn_left(NAV_SPEED_CORRECTION);
+        sleep_ms(NAV_CORRECTION_TIME_MS);
+        motors_stop();
+        flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
+        return true;
+    }
+
+    /* ======================================================
+     * PRIORIDAD 4: Camino libre — avanzar
+     * ====================================================== */
     motors_forward(NAV_SPEED_FORWARD);
     return true;
 }
