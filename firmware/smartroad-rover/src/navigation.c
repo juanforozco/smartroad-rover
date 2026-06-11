@@ -1,16 +1,17 @@
 /**
  * @file navigation.c
- * @brief Implementacion de la navegacion autonoma reactiva v2
+ * @brief Implementacion de la navegacion autonoma reactiva v3
  *
- * Mejoras respecto a v1:
- *   - Confirmacion de 2 lecturas consecutivas antes de actuar
- *     evita reaccionar a lecturas espurias o transitorias
- *   - Avance obligatorio de 200ms post-giro para salir del
- *     punto de decision antes de re-evaluar
- *   - Velocidades diferenciadas: avance normal (500) vs
- *     maniobra (450) para mayor control en evasion
- *   - Umbral reducido a 18cm para reaccionar solo cuando
- *     el obstaculo esta realmente cerca
+ * Cambios respecto a v2:
+ *   - Deteccion lateral activa: si sensor izq o der detecta obstaculo
+ *     cercano, el rover frena y evade hacia el lado contrario
+ *   - Umbral frontal: 15cm (mas ajustado)
+ *   - Umbral lateral: 20cm (mayor para reaccionar antes del choque)
+ *   - Limpieza de buffer post-giro: se ejecutan NAV_BUFFER_FLUSH_CYCLES
+ *     ciclos de trigger+espera para que el filtro de mediana se actualice
+ *     con lecturas frescas antes de volver a evaluar
+ *   - Velocidad avance (650) > velocidad giro (520) para movimiento
+ *     mas natural y controlado
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -26,8 +27,28 @@
  * Variables privadas
  * ========================================================= */
 
-/** @brief Contador de confirmaciones de obstaculo frontal consecutivas */
+/** @brief Contador de confirmaciones de obstaculo frontal */
 static uint8_t obstacle_confirm_count = 0;
+
+/* =========================================================
+ * Funciones privadas
+ * ========================================================= */
+
+/**
+ * @brief Ejecuta N ciclos de trigger para limpiar el buffer de mediana
+ *
+ * Despues de una maniobra, el buffer puede contener lecturas del
+ * obstaculo anterior. Esta funcion fuerza N nuevas lecturas para
+ * que la mediana refleje la situacion actual antes de decidir.
+ *
+ * @param cycles Numero de ciclos de trigger a ejecutar
+ */
+static void flush_sensor_buffer(uint8_t cycles) {
+    for (uint8_t i = 0; i < cycles; i++) {
+        sensors_trigger();
+        sleep_ms(SENSOR_TRIGGER_WAIT_MS);
+    }
+}
 
 /* =========================================================
  * Implementacion de la API publica
@@ -35,7 +56,7 @@ static uint8_t obstacle_confirm_count = 0;
 
 void navigation_init(void) {
     obstacle_confirm_count = 0;
-    printf("[NAV] Modulo de navegacion v2 inicializado.\n");
+    printf("[NAV] Modulo de navegacion v3 inicializado.\n");
 }
 
 bool navigation_step(void) {
@@ -56,29 +77,52 @@ bool navigation_step(void) {
         motors_turn_right(NAV_SPEED_TURN);
         sleep_ms(NAV_TURN_TIME_MS);
         motors_stop();
-        sleep_ms(50);
-        /* Avance obligatorio para salir del punto */
-        motors_forward(NAV_SPEED_MANEUVER);
-        sleep_ms(NAV_POST_TURN_ADVANCE_MS);
+        flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
+        return true;
+    }
+
+    /* --- Deteccion lateral izquierda --- */
+    if (dist_left < NAV_OBSTACLE_SIDE_CM) {
+        obstacle_confirm_count = 0;
+        printf("[NAV] Obstaculo lateral izquierdo (%d cm) — girando derecha\n",
+               dist_left);
         motors_stop();
+        sleep_ms(50);
+        motors_turn_right(NAV_SPEED_TURN);
+        sleep_ms(NAV_TURN_TIME_MS);
+        motors_stop();
+        flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
+        return true;
+    }
+
+    /* --- Deteccion lateral derecha --- */
+    if (dist_right < NAV_OBSTACLE_SIDE_CM) {
+        obstacle_confirm_count = 0;
+        printf("[NAV] Obstaculo lateral derecho (%d cm) — girando izquierda\n",
+               dist_right);
+        motors_stop();
+        sleep_ms(50);
+        motors_turn_left(NAV_SPEED_TURN);
+        sleep_ms(NAV_TURN_TIME_MS);
+        motors_stop();
+        flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
         return true;
     }
 
     /* --- Confirmacion de obstaculo frontal --- */
-    if (dist_center < NAV_OBSTACLE_THRESHOLD_CM) {
+    if (dist_center < NAV_OBSTACLE_FRONT_CM) {
         obstacle_confirm_count++;
     } else {
-        /* Resetear contador si el camino esta libre */
         obstacle_confirm_count = 0;
     }
 
-    /* --- Actuar solo si se confirmo el obstaculo --- */
+    /* --- Actuar solo si se confirmo el obstaculo frontal --- */
     if (obstacle_confirm_count >= NAV_CONFIRM_COUNT) {
         obstacle_confirm_count = 0;
         motors_stop();
-        sleep_ms(50); /* Pausa breve para estabilizar */
+        sleep_ms(50);
 
-        /* Seleccionar direccion de giro segun lado libre */
+        /* Girar hacia lado con mas espacio */
         if (dist_left >= dist_right) {
             printf("[NAV] Obstaculo frontal — girando izquierda (izq:%d der:%d)\n",
                    dist_left, dist_right);
@@ -90,12 +134,9 @@ bool navigation_step(void) {
         }
         sleep_ms(NAV_TURN_TIME_MS);
         motors_stop();
-        sleep_ms(50);
 
-        /* Avance obligatorio post-giro para salir del punto de decision */
-        motors_forward(NAV_SPEED_MANEUVER);
-        sleep_ms(NAV_POST_TURN_ADVANCE_MS);
-        motors_stop();
+        /* Limpiar buffer antes de re-evaluar */
+        flush_sensor_buffer(NAV_BUFFER_FLUSH_CYCLES);
         return true;
     }
 
