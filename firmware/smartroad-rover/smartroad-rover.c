@@ -1,15 +1,9 @@
 /**
  * @file smartroad-rover.c
- * @brief Prueba del modo autonomo reactivo — SmartRoad Rover
+ * @brief Modo autonomo reactivo — SmartRoad Rover
  *
- * Integra sensores, motores y navegacion para probar
- * el modo autonomo reactivo completo.
- *
- * Ciclo principal:
- *   1. Disparar sensores (polling)
- *   2. Esperar ecos (IRQ en background)
- *   3. Ejecutar paso de navegacion
- *   4. Repetir
+ * Loop principal con disparo secuencial de sensores.
+ * Ciclo completo: ~90ms (3 sensores x 35ms) + tiempo de maniobra.
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -25,23 +19,21 @@ int main(void) {
     stdio_init_all();
     sleep_ms(2000);
 
-    printf("=== SmartRoad Rover — Modo autonomo reactivo ===\n");
+    printf("=== SmartRoad Rover — Modo autonomo reactivo v2 ===\n");
+    printf("Disparo secuencial de sensores activo.\n\n");
 
-    /* Inicializar modulos en orden correcto */
     motors_init();
     sensors_init();
     navigation_init();
 
-    printf("Sistema listo. Iniciando navegacion autonoma...\n\n");
+    printf("Sistema listo. Iniciando navegacion...\n\n");
 
     while (true) {
-        /* Disparar los tres sensores simultaneamente */
-        sensors_trigger();
+        /* Disparar sensores de forma secuencial
+         * evita ecos cruzados entre sensores */
+        sensors_trigger_all_sequential();
 
-        /* Esperar ecos — las IRQ actualizan los buffers en background */
-        sleep_ms(SENSOR_TRIGGER_WAIT_MS);
-
-        /* Ejecutar un paso del algoritmo de navegacion */
+        /* Ejecutar paso de navegacion con lecturas limpias */
         navigation_step();
     }
 

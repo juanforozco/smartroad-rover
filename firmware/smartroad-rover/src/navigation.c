@@ -47,8 +47,7 @@ static uint8_t obstacle_confirm_count = 0;
  */
 static void flush_sensor_buffer(uint8_t cycles) {
     for (uint8_t i = 0; i < cycles; i++) {
-        sensors_trigger();
-        sleep_ms(SENSOR_TRIGGER_WAIT_MS);
+        sensors_trigger_all_sequential();
     }
 }
 
