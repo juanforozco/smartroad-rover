@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
+# Definir board como Pico W
+set(PICO_BOARD pico_w)
+
 # Importar el SDK del Pico
 include(pico_sdk_import.cmake)
 
@@ -10,7 +13,7 @@ set(CMAKE_CXX_STANDARD 17)
 # Inicializar el SDK
 pico_sdk_init()
 
-# Ejecutable principal con todos los módulos
+# Ejecutable principal con todos los modulos
 add_executable(smartroad-rover
     smartroad-rover.c
     src/sensors.c
@@ -24,10 +27,9 @@ target_include_directories(smartroad-rover PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Librerías del SDK que usamos
+# Librerias del SDK
 target_link_libraries(smartroad-rover
     pico_stdlib
-    pico_cyw43_arch_lwip_poll
     hardware_gpio
     hardware_pwm
     hardware_uart
