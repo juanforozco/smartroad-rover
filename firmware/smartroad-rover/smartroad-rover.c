@@ -1,10 +1,15 @@
 /**
  * @file smartroad-rover.c
- * @brief Prueba del modulo de sensores — SmartRoad Rover
+ * @brief Prueba del modo autonomo reactivo — SmartRoad Rover
  *
- * Lee los tres sensores HC-SR04 y muestra las distancias
- * por el monitor serial cada 500ms.
- * Verificar que las lecturas son coherentes con la realidad fisica.
+ * Integra sensores, motores y navegacion para probar
+ * el modo autonomo reactivo completo.
+ *
+ * Ciclo principal:
+ *   1. Disparar sensores (polling)
+ *   2. Esperar ecos (IRQ en background)
+ *   3. Ejecutar paso de navegacion
+ *   4. Repetir
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -12,44 +17,32 @@
 
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "motors.h"
 #include "sensors.h"
+#include "navigation.h"
 
 int main(void) {
     stdio_init_all();
     sleep_ms(2000);
 
-    printf("=== SmartRoad Rover — Prueba de sensores ===\n");
+    printf("=== SmartRoad Rover — Modo autonomo reactivo ===\n");
 
+    /* Inicializar modulos en orden correcto */
+    motors_init();
     sensors_init();
-    printf("Sensores inicializados.\n\n");
+    navigation_init();
+
+    printf("Sistema listo. Iniciando navegacion autonoma...\n\n");
 
     while (true) {
-        /* Disparar los tres sensores */
+        /* Disparar los tres sensores simultaneamente */
         sensors_trigger();
 
-        /* Esperar a que lleguen los ecos (max ~30ms para 5m) */
+        /* Esperar ecos — las IRQ actualizan los buffers en background */
         sleep_ms(SENSOR_TRIGGER_WAIT_MS);
 
-        /* Leer distancias filtradas */
-        uint16_t dist_right  = sensors_get_distance(SENSOR_RIGHT);
-        uint16_t dist_center = sensors_get_distance(SENSOR_CENTER);
-        uint16_t dist_left   = sensors_get_distance(SENSOR_LEFT);
-
-        /* Mostrar por serial */
-        printf("IZQ: %3d cm | CENTRO: %3d cm | DER: %3d cm",
-               dist_left, dist_center, dist_right);
-
-        /* Indicar si hay obstaculo */
-        if (sensors_all_blocked()) {
-            printf("  [!!! BLOQUEADO TOTAL !!!]");
-        } else {
-            if (sensors_obstacle_detected(SENSOR_LEFT))   printf("  [OBS IZQ]");
-            if (sensors_obstacle_detected(SENSOR_CENTER)) printf("  [OBS CENTRO]");
-            if (sensors_obstacle_detected(SENSOR_RIGHT))  printf("  [OBS DER]");
-        }
-        printf("\n");
-
-        sleep_ms(500);
+        /* Ejecutar un paso del algoritmo de navegacion */
+        navigation_step();
     }
 
     return 0;
