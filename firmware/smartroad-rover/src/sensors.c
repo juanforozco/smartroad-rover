@@ -1,23 +1,10 @@
 /**
  * @file sensors.c
- * @brief Implementacion de sensores HC-SR04 con disparo secuencial
+ * @brief Implementacion de sensores HC-SR04
  *
- * v2 - Disparo secuencial para eliminar ecos cruzados.
- *
- * Problema identificado con disparo simultaneo:
- *   Con 3 sensores en el mismo TRIG, el eco del sensor A puede
- *   llegar al sensor B antes que su propio eco, generando lecturas
- *   falsas cortas que confunden al algoritmo de navegacion.
- *
- * Solucion implementada:
- *   Disparar un sensor a la vez. Esperar SENSOR_INTER_TRIGGER_MS
- *   para que los ecos se disipen antes del siguiente disparo.
- *   A 30ms por sensor, el ciclo completo es ~90ms — suficientemente
- *   rapido para navegacion reactiva a velocidad moderada.
- *
- * La medicion sigue siendo por IRQ: no hay polling bloqueante
- * esperando el ECHO. El CPU espera el tiempo de disipacion pero
- * las IRQ capturan el flanco exacto del ECHO con precision de us.
+ * Disparo simultaneo desde pin TRIG compartido.
+ * Medicion por IRQ en flancos de subida y bajada del ECHO.
+ * Filtro de mediana sobre 3 muestras.
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -29,7 +16,7 @@
 #include "pico/stdlib.h"
 
 /* =========================================================
- * Estructura interna de canal
+ * Estructura interna
  * ========================================================= */
 
 typedef struct {
@@ -50,16 +37,10 @@ static sensor_channel_t sensors[SENSOR_COUNT] = {
     [SENSOR_LEFT]   = { .echo_pin = SENSOR_ECHO_LEFT,   .buf_idx = 0, .valid = false },
 };
 
-/** @brief Sensor actualmente esperando respuesta ECHO */
-static volatile sensor_id_t active_sensor = SENSOR_COUNT;
-
 /* =========================================================
  * Funciones privadas
  * ========================================================= */
 
-/**
- * @brief Convierte pin GPIO a indice de sensor
- */
 static sensor_id_t pin_to_sensor(uint gpio) {
     for (sensor_id_t i = 0; i < SENSOR_COUNT; i++) {
         if (sensors[i].echo_pin == gpio) return i;
@@ -67,9 +48,6 @@ static sensor_id_t pin_to_sensor(uint gpio) {
     return SENSOR_COUNT;
 }
 
-/**
- * @brief Calcula mediana de tres valores uint16_t
- */
 static uint16_t median3(uint16_t a, uint16_t b, uint16_t c) {
     uint16_t tmp;
     if (a > b) { tmp = a; a = b; b = tmp; }
@@ -82,14 +60,12 @@ static uint16_t median3(uint16_t a, uint16_t b, uint16_t c) {
 /**
  * @brief ISR compartida para los tres pines ECHO
  *
- * Solo procesa el sensor activo para evitar que ecos
- * residuales de disparos anteriores contaminen la lectura.
+ * Flanco subida: registra tiempo de inicio del pulso.
+ * Flanco bajada: calcula distancia y actualiza buffer circular.
  */
 static void echo_irq_handler(uint gpio, uint32_t events) {
     sensor_id_t idx = pin_to_sensor(gpio);
-
-    /* Solo procesar el sensor que fue disparado activamente */
-    if (idx != active_sensor) return;
+    if (idx == SENSOR_COUNT) return;
 
     if (events & GPIO_IRQ_EDGE_RISE) {
         sensors[idx].t_rise = time_us_32();
@@ -97,8 +73,8 @@ static void echo_irq_handler(uint gpio, uint32_t events) {
     } else if (events & GPIO_IRQ_EDGE_FALL) {
         uint32_t pulse_us = time_us_32() - sensors[idx].t_rise;
 
-        /* dist_cm = pulse_us * 17 / 1000
-         * (velocidad sonido 340m/s → 0.017 cm/us → *17/1000) */
+        /* dist_cm = pulse_us * 0.017
+         * velocidad sonido 340m/s = 0.034 cm/us / 2 (ida y vuelta) */
         uint16_t dist_cm = (uint16_t)((pulse_us * 17UL) / 1000UL);
 
         if (dist_cm > SENSOR_MAX_DISTANCE_CM) {
@@ -111,43 +87,15 @@ static void echo_irq_handler(uint gpio, uint32_t events) {
     }
 }
 
-/**
- * @brief Dispara un sensor individual y espera su eco
- *
- * Activa el sensor como activo, genera pulso TRIG de 10us,
- * espera el tiempo de eco y luego desactiva.
- *
- * @param id Sensor a disparar
- */
-static void trigger_single(sensor_id_t id) {
-    /* Marcar sensor activo para que la ISR lo procese */
-    active_sensor = id;
-
-    /* Pulso TRIG de 10us */
-    gpio_put(SENSOR_TRIG_PIN, 1);
-    busy_wait_us(10);
-    gpio_put(SENSOR_TRIG_PIN, 0);
-
-    /* Esperar tiempo de eco — IRQ captura el resultado */
-    sleep_ms(SENSOR_TRIGGER_WAIT_MS);
-
-    /* Desactivar sensor activo */
-    active_sensor = SENSOR_COUNT;
-}
-
 /* =========================================================
  * API publica
  * ========================================================= */
 
 void sensors_init(void) {
-    active_sensor = SENSOR_COUNT;
-
-    /* Configurar TRIG como salida */
     gpio_init(SENSOR_TRIG_PIN);
     gpio_set_dir(SENSOR_TRIG_PIN, GPIO_OUT);
     gpio_put(SENSOR_TRIG_PIN, 0);
 
-    /* Configurar cada ECHO con IRQ en ambos flancos */
     for (sensor_id_t i = 0; i < SENSOR_COUNT; i++) {
         gpio_init(sensors[i].echo_pin);
         gpio_set_dir(sensors[i].echo_pin, GPIO_IN);
@@ -159,24 +107,16 @@ void sensors_init(void) {
             &echo_irq_handler
         );
 
-        /* Inicializar buffer con distancia maxima */
         for (uint8_t j = 0; j < SENSOR_FILTER_SIZE; j++) {
             sensors[i].buffer[j] = SENSOR_MAX_DISTANCE_CM;
         }
     }
 }
 
-void sensors_trigger_all_sequential(void) {
-    /* Disparar cada sensor con pausa entre ellos
-     * para que los ecos del anterior se disipen */
-    trigger_single(SENSOR_CENTER);
-    sleep_ms(SENSOR_INTER_TRIGGER_MS);
-
-    trigger_single(SENSOR_RIGHT);
-    sleep_ms(SENSOR_INTER_TRIGGER_MS);
-
-    trigger_single(SENSOR_LEFT);
-    /* No hace falta esperar al final — navigation_step lo maneja */
+void sensors_trigger(void) {
+    gpio_put(SENSOR_TRIG_PIN, 1);
+    busy_wait_us(10);
+    gpio_put(SENSOR_TRIG_PIN, 0);
 }
 
 uint16_t sensors_get_distance(sensor_id_t id) {

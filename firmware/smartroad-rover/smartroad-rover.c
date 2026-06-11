@@ -2,8 +2,7 @@
  * @file smartroad-rover.c
  * @brief Modo autonomo reactivo — SmartRoad Rover
  *
- * Loop principal con disparo secuencial de sensores.
- * Ciclo completo: ~90ms (3 sensores x 35ms) + tiempo de maniobra.
+ * Loop principal: disparo de sensores + paso de navegacion.
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -19,8 +18,7 @@ int main(void) {
     stdio_init_all();
     sleep_ms(2000);
 
-    printf("=== SmartRoad Rover — Modo autonomo reactivo v2 ===\n");
-    printf("Disparo secuencial de sensores activo.\n\n");
+    printf("=== SmartRoad Rover — Modo autonomo reactivo ===\n");
 
     motors_init();
     sensors_init();
@@ -29,11 +27,8 @@ int main(void) {
     printf("Sistema listo. Iniciando navegacion...\n\n");
 
     while (true) {
-        /* Disparar sensores de forma secuencial
-         * evita ecos cruzados entre sensores */
-        sensors_trigger_all_sequential();
-
-        /* Ejecutar paso de navegacion con lecturas limpias */
+        sensors_trigger();
+        sleep_ms(SENSOR_TRIGGER_WAIT_MS);
         navigation_step();
     }
 
