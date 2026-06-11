@@ -64,8 +64,12 @@ static void evasive_maneuver(bool turn_left) {
     sleep_ms(NAV_TURN_90_MS);
     motors_stop();
 
-    /* Paso 4: Pausa post-giro — dejar que lecturas se estabilicen */
-    sleep_ms(NAV_PAUSE_AFTER_TURN_MS);
+    /* Paso 4: Limpiar buffer con lecturas frescas post-giro
+     * Disparar 4 veces para que la mediana refleje nueva posicion */
+    for (uint8_t i = 0; i < 4; i++) {
+        sensors_trigger();
+        sleep_ms(SENSOR_TRIGGER_WAIT_MS);
+    }
 }
 
 /* =========================================================
@@ -160,8 +164,10 @@ bool navigation_step(void) {
         evasive_maneuver(turn_left);
     }
 
-    /* Si aun no confirma: frenar y esperar siguiente lectura */
+    /* Frontal detectado pero sin confirmar aun — frenar y esperar */
     motors_stop();
+    sensors_trigger();
+    sleep_ms(SENSOR_TRIGGER_WAIT_MS);
     return true;
 }
 

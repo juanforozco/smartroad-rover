@@ -45,7 +45,7 @@
  * ========================================================= */
 
 /** @brief Umbral frontal en cm */
-#define NAV_OBSTACLE_FRONT_CM     20
+#define NAV_OBSTACLE_FRONT_CM     15
 
 /** @brief Umbral lateral en cm — solo correccion suave sin frenar */
 #define NAV_OBSTACLE_SIDE_CM       8
@@ -67,7 +67,7 @@
 #define NAV_TURN_90_MS            750
 
 /** @brief Pausa post-giro antes de re-evaluar (ms) */
-#define NAV_PAUSE_AFTER_TURN_MS   150
+#define NAV_PAUSE_AFTER_TURN_MS   300
 
 /** @brief Confirmaciones consecutivas para actuar (frontal) */
 #define NAV_CONFIRM_COUNT           3
