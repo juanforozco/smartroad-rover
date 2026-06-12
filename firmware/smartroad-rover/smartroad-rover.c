@@ -1,17 +1,8 @@
 /**
  * @file smartroad-rover.c
- * @brief Punto de entrada principal — SmartRoad Rover
+ * @brief Modo autonomo reactivo — SmartRoad Rover
  *
- * Inicializa el sistema y ejecuta el loop principal
- * que despacha la FSM. La FSM gestiona tres modos:
- *
- *   AUTO — Navegacion autonoma reactiva (modo principal)
- *   WEB  — Control manual via WiFi
- *   GPS  — Navegacion hacia coordenada objetivo
- *
- * Seleccion de modo por serial USB:
- *   Al arrancar: menu con 5s de espera, default AUTO
- *   En cualquier momento: escribir AUTO, WEB o GPS
+ * Loop principal: disparo de sensores + paso de navegacion.
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -19,31 +10,26 @@
 
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "fsm.h"
-#include "web_server.h"
-#include "gps.h"
+#include "motors.h"
+#include "sensors.h"
+#include "navigation.h"
 
 int main(void) {
     stdio_init_all();
     sleep_ms(2000);
 
-    printf("=== SmartRoad Rover ===\n");
-    printf("Iniciando sistema...\n\n");
+    printf("=== SmartRoad Rover — Modo autonomo reactivo ===\n");
 
-    /* Inicializar WiFi — Access Point siempre activo
-     * para permitir cambio a modo WEB en cualquier momento */
-    web_server_init();
+    motors_init();
+    sensors_init();
+    navigation_init();
 
-    /* Inicializar GPS */
-    gps_init();
+    printf("Sistema listo. Iniciando navegacion...\n\n");
 
-    /* Inicializar FSM — muestra menu, espera seleccion,
-     * arranca en AUTO por defecto si no hay input */
-    fsm_init();
-
-    /* Loop principal */
     while (true) {
-        fsm_run();
+        sensors_trigger();
+        sleep_ms(SENSOR_TRIGGER_WAIT_MS);
+        navigation_step();
     }
 
     return 0;

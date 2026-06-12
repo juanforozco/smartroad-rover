@@ -2,14 +2,18 @@
  * @file fsm.c
  * @brief Implementacion de la FSM del sistema SmartRoad Rover
  *
- * Incluye selector de modo por serial USB usando un
- * repeating timer de hardware del RP2040. El timer verifica
- * stdin cada 100ms sin bloquear el loop principal.
+ * Selector de modo por serial USB integrado directamente
+ * en el loop principal, sin timers adicionales que puedan
+ * interferir con el timing de las IRQ de sensores.
  *
- * Comandos seriales validos (en cualquier momento):
+ * La lectura serial es no bloqueante usando getchar_timeout_us(0).
+ * Se ejecuta al final de cada ciclo de navegacion.
+ *
+ * Comandos seriales validos:
  *   AUTO → STATE_AUTO_REACTIVE
  *   WEB  → STATE_MANUAL
  *   GPS  → STATE_GPS
+ *   MENU → muestra el menu
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -22,7 +26,6 @@
 #include "web_server.h"
 #include "gps.h"
 #include "pico/stdlib.h"
-#include "hardware/timer.h"
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -37,14 +40,17 @@ volatile system_state_t current_state = STATE_INIT;
  * Variables privadas
  * ========================================================= */
 
-/** @brief Timer para verificacion periodica de serial */
-static repeating_timer_t serial_timer;
-
 /** @brief Buffer acumulador de comando serial */
 static char serial_buf[16];
 
 /** @brief Indice actual en el buffer serial */
 static uint8_t serial_idx = 0;
+
+/** @brief Flag: WiFi ya inicializado */
+static bool wifi_initialized = false;
+
+/** @brief Flag: GPS ya inicializado */
+static bool gps_initialized = false;
 
 /* =========================================================
  * Funciones privadas
@@ -60,61 +66,56 @@ static void print_menu(void) {
     printf("  AUTO → Modo autonomo reactivo\n");
     printf("  WEB  → Modo manual via WiFi\n");
     printf("  GPS  → Modo navegacion GPS\n");
+    printf("  MENU → Mostrar este menu\n");
     printf("========================================\n");
     printf("Modo actual: %s\n", fsm_state_name());
-    printf("Escribe un comando y presiona Enter:\n> ");
+    printf("> ");
 }
 
 /**
- * @brief Procesa un comando serial recibido
- *
- * @param cmd String con el comando (ya en mayusculas)
+ * @brief Procesa un comando serial completo
+ * @param cmd String con el comando en mayusculas
  */
 static void process_serial_command(const char *cmd) {
     if (strcmp(cmd, "AUTO") == 0) {
-        printf("\n[FSM] Comando serial: AUTO\n");
+        printf("\n[FSM] Comando: AUTO\n");
         fsm_request_transition(STATE_AUTO_REACTIVE);
     } else if (strcmp(cmd, "WEB") == 0) {
-        printf("\n[FSM] Comando serial: WEB\n");
+        printf("\n[FSM] Comando: WEB\n");
         fsm_request_transition(STATE_MANUAL);
     } else if (strcmp(cmd, "GPS") == 0) {
-        printf("\n[FSM] Comando serial: GPS\n");
+        printf("\n[FSM] Comando: GPS\n");
         fsm_request_transition(STATE_GPS);
     } else if (strcmp(cmd, "MENU") == 0) {
         print_menu();
     } else {
         printf("\n[FSM] Comando no reconocido: '%s'\n", cmd);
-        printf("Comandos validos: AUTO, WEB, GPS, MENU\n> ");
+        printf("Comandos: AUTO, WEB, GPS, MENU\n> ");
     }
 }
 
 /**
- * @brief Callback del repeating timer — verifica serial cada 100ms
+ * @brief Verifica y procesa un caracter serial disponible
  *
- * Lee caracteres disponibles en stdin y acumula en buffer.
- * Al recibir Enter, procesa el comando completo.
- *
- * @param t Puntero al timer (no usado)
- * @return true para mantener el timer activo
+ * No bloqueante — usa getchar_timeout_us(0).
+ * Acumula caracteres hasta recibir Enter.
  */
-static bool serial_timer_callback(repeating_timer_t *t) {
-    int c;
-    while ((c = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
-        if (c == '\r' || c == '\n') {
-            if (serial_idx > 0) {
-                serial_buf[serial_idx] = '\0';
-                /* Convertir a mayusculas */
-                for (int i = 0; serial_buf[i]; i++) {
-                    serial_buf[i] = toupper(serial_buf[i]);
-                }
-                process_serial_command(serial_buf);
-                serial_idx = 0;
+static void check_serial(void) {
+    int c = getchar_timeout_us(0);
+    if (c == PICO_ERROR_TIMEOUT) return;
+
+    if (c == '\r' || c == '\n') {
+        if (serial_idx > 0) {
+            serial_buf[serial_idx] = '\0';
+            for (int i = 0; serial_buf[i]; i++) {
+                serial_buf[i] = toupper(serial_buf[i]);
             }
-        } else if (serial_idx < 15 && isprint(c)) {
-            serial_buf[serial_idx++] = (char)c;
+            process_serial_command(serial_buf);
+            serial_idx = 0;
         }
+    } else if (serial_idx < 15 && isprint(c)) {
+        serial_buf[serial_idx++] = (char)c;
     }
-    return true; /* Mantener timer activo */
 }
 
 /* =========================================================
@@ -124,23 +125,20 @@ static bool serial_timer_callback(repeating_timer_t *t) {
 void fsm_init(void) {
     current_state = STATE_INIT;
 
-    /* Inicializar modulos de hardware */
     motors_init();
     sensors_init();
     navigation_init();
 
-    /* Iniciar timer de hardware para verificacion serial
-     * Periodo: 100ms — no bloqueante, corre en background */
-    add_repeating_timer_ms(100, serial_timer_callback, NULL, &serial_timer);
-
-    /* Mostrar menu y esperar seleccion */
     print_menu();
     printf("(Arrancando en AUTO en 5 segundos...)\n");
 
-    /* Esperar 5 segundos — el timer atiende input serial */
-    sleep_ms(5000);
+    /* Esperar seleccion — leer serial manualmente durante la espera */
+    for (int i = 0; i < 50; i++) {
+        check_serial();
+        sleep_ms(100);
+        if (current_state != STATE_INIT) break;
+    }
 
-    /* Si no hubo transicion, arrancar en AUTO por defecto */
     if (current_state == STATE_INIT) {
         printf("[FSM] Sin seleccion — modo AUTO por defecto\n");
         fsm_request_transition(STATE_AUTO_REACTIVE);
@@ -158,19 +156,17 @@ void fsm_run(void) {
             sensors_trigger();
             sleep_ms(SENSOR_TRIGGER_WAIT_MS);
             navigation_step();
-
-            if (web_server_mode_requested() == WEB_MODE_MANUAL) {
-                fsm_request_transition(STATE_MANUAL);
-            }
+            /* Verificar serial al final del ciclo — no bloqueante */
+            check_serial();
             break;
 
         case STATE_MANUAL:
             web_server_poll();
+            check_serial();
 
             if (web_server_mode_requested() == WEB_MODE_AUTO) {
                 fsm_request_transition(STATE_AUTO_REACTIVE);
             }
-
             if (web_server_wifi_timeout()) {
                 printf("[FSM] WiFi timeout — SAFE_STOP\n");
                 fsm_request_transition(STATE_SAFE_STOP);
@@ -178,13 +174,11 @@ void fsm_run(void) {
             break;
 
         case STATE_GPS:
-            /* Ejecutar paso de navegacion GPS
-             * Los sensores siguen activos durante GPS (RF-G5) */
             sensors_trigger();
             sleep_ms(SENSOR_TRIGGER_WAIT_MS);
             gps_navigation_step();
+            check_serial();
 
-            /* Verificar perdida de señal GPS (RNF-6) */
             if (!gps_signal_valid()) {
                 printf("[FSM] GPS perdido — AUTO_REACTIVE\n");
                 fsm_request_transition(STATE_AUTO_REACTIVE);
@@ -211,27 +205,52 @@ void fsm_request_transition(system_state_t new_state) {
            (new_state == STATE_GPS)            ? "GPS"           :
            (new_state == STATE_SAFE_STOP)      ? "SAFE_STOP"     : "?");
 
-    /* Acciones de salida */
     if (current_state == STATE_AUTO_REACTIVE ||
-        current_state == STATE_MANUAL ||
+        current_state == STATE_MANUAL        ||
         current_state == STATE_GPS) {
         motors_stop();
     }
 
     current_state = new_state;
 
-    /* Acciones de entrada */
-    if (new_state == STATE_MANUAL) {
-        web_server_reset_watchdog();
-        printf("[FSM] WiFi activo. Conectar a: %s\n", WIFI_SSID);
-        printf("[FSM] Acceso web: http://192.168.4.1\n");
-    }
-    if (new_state == STATE_AUTO_REACTIVE) {
-        printf("[FSM] Navegacion autonoma activa.\n");
-        printf("[FSM] Escribe AUTO/WEB/GPS para cambiar modo.\n");
-    }
-    if (new_state == STATE_GPS) {
-        printf("[FSM] Modo GPS activo.\n");
+    switch (new_state) {
+
+        case STATE_AUTO_REACTIVE:
+            printf("[FSM] Modo autonomo activo.\n");
+            printf("[FSM] Escribe AUTO/WEB/GPS para cambiar.\n");
+            break;
+
+        case STATE_MANUAL:
+            if (!wifi_initialized) {
+                printf("[FSM] Iniciando WiFi...\n");
+                if (web_server_init()) {
+                    wifi_initialized = true;
+                } else {
+                    printf("[FSM] Error WiFi — volviendo a AUTO\n");
+                    current_state = STATE_AUTO_REACTIVE;
+                    return;
+                }
+            }
+            web_server_reset_watchdog();
+            printf("[FSM] Conectar a: %s / %s\n", WIFI_SSID, WIFI_PASSWORD);
+            printf("[FSM] Acceso: http://192.168.4.1\n");
+            break;
+
+        case STATE_GPS:
+            if (!gps_initialized) {
+                printf("[FSM] Iniciando GPS...\n");
+                gps_init();
+                gps_initialized = true;
+            }
+            printf("[FSM] Esperando señal satelital...\n");
+            break;
+
+        case STATE_SAFE_STOP:
+            motors_stop();
+            break;
+
+        default:
+            break;
     }
 }
 
@@ -247,6 +266,5 @@ const char *fsm_state_name(void) {
 }
 
 void fsm_check_serial_command(void) {
-    /* La verificacion serial la maneja el repeating timer
-     * Esta funcion existe para compatibilidad de API */
+    check_serial();
 }
