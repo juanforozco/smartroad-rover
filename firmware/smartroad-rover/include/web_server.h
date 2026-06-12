@@ -47,7 +47,7 @@
 #define WIFI_PASSWORD    "rover1234"
 
 /** @brief Timeout del watchdog WiFi en ms (RNF-5) */
-#define WEB_WIFI_TIMEOUT_MS   500
+#define WEB_WIFI_TIMEOUT_MS   30000
 
 /* =========================================================
  * Tipos

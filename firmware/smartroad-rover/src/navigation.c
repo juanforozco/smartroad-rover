@@ -56,7 +56,7 @@ static void evasive_maneuver(bool turn_left) {
 
     /* Arrancar inmediatamente si frontal libre */
     if (sensors_get_distance(SENSOR_CENTER) >= NAV_OBSTACLE_FRONT_CM) {
-        printf("[NAV] Via libre post-maniobra — arrancando\n");
+        //printf("[NAV] Via libre post-maniobra — arrancando\n");
         motors_forward(NAV_SPEED_FORWARD);
     }
 }
@@ -104,7 +104,7 @@ bool navigation_step(void) {
      * ====================================================== */
     if (dist_left < NAV_OBSTACLE_SIDE_CRITICAL_CM) {
         obstacle_confirm_count = 0;
-        printf("[NAV] CRITICO izq (%dcm) — corrigiendo\n", dist_left);
+        //printf("[NAV] CRITICO izq (%dcm) — corrigiendo\n", dist_left);
         motors_stop();
         sleep_ms(100);
         motors_turn_right(NAV_SPEED_TURN);
@@ -115,7 +115,7 @@ bool navigation_step(void) {
 
     if (dist_right < NAV_OBSTACLE_SIDE_CRITICAL_CM) {
         obstacle_confirm_count = 0;
-        printf("[NAV] CRITICO der (%dcm) — corrigiendo\n", dist_right);
+        //printf("[NAV] CRITICO der (%dcm) — corrigiendo\n", dist_right);
         motors_stop();
         sleep_ms(100);
         motors_turn_left(NAV_SPEED_TURN);
@@ -139,7 +139,7 @@ bool navigation_step(void) {
         if (dist_left < NAV_OBSTACLE_SIDE_CM && dist_right >= NAV_OBSTACLE_SIDE_CM) {
             uint16_t slow = (dist_left < 6) ? 150 :
                             (dist_left < 8) ? 250 : 330;
-            printf("[NAV] Correccion derecha (izq:%dcm)\n", dist_left);
+            //printf("[NAV] Correccion derecha (izq:%dcm)\n", dist_left);
             motors_set(MOTOR_FORWARD, NAV_SPEED_FORWARD,
                        MOTOR_FORWARD, slow);
             return true;
@@ -148,7 +148,7 @@ bool navigation_step(void) {
         if (dist_right < NAV_OBSTACLE_SIDE_CM && dist_left >= NAV_OBSTACLE_SIDE_CM) {
             uint16_t slow = (dist_right < 6) ? 150 :
                             (dist_right < 8) ? 250 : 330;
-            printf("[NAV] Correccion izquierda (der:%dcm)\n", dist_right);
+            //printf("[NAV] Correccion izquierda (der:%dcm)\n", dist_right);
             motors_set(MOTOR_FORWARD, slow,
                        MOTOR_FORWARD, NAV_SPEED_FORWARD);
             return true;
