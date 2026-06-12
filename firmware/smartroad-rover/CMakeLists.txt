@@ -20,16 +20,19 @@ add_executable(smartroad-rover
     src/motors.c
     src/navigation.c
     src/fsm.c
+    src/web_server.c
 )
 
 # Incluir carpeta de headers
 target_include_directories(smartroad-rover PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Librerias del SDK
+# Librerias del SDK incluyendo WiFi
 target_link_libraries(smartroad-rover
     pico_stdlib
+    pico_cyw43_arch_lwip_poll
     hardware_gpio
     hardware_pwm
     hardware_uart
