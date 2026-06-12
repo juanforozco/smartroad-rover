@@ -1,18 +1,19 @@
 /**
  * @file navigation.h
- * @brief Logica de navegacion autonoma reactiva
+ * @brief Logica de navegacion autonoma reactiva v9
  *
- * Arquitectura de decision:
+ * REGLA DE ORO: frontal libre = avanzar siempre,
+ * excepto cuando lateral critico detecta contacto inminente.
  *
- *   REGLA DE ORO: Si frontal libre → avanzar SIEMPRE.
- *   Los sensores laterales NUNCA detienen el avance frontal.
- *
- *   1. Todos bloqueados → contingencia completa
- *   2. Frontal bloqueado (3 confirmaciones) → maniobra evasiva completa
- *      frenado → pausa → retroceso lento → pausa → giro 90° lento → pausa
- *   3. Frontal libre + lateral muy cerca → correccion suave SIN frenar
- *      el rover ajusta trayectoria mientras sigue avanzando
- *   4. Todo libre → avanzar
+ * Prioridades:
+ *   1.  Todos bloqueados → contingencia completa
+ *   1.5 Lateral critico (< NAV_OBSTACLE_SIDE_CRITICAL_CM) →
+ *       frena y corrige, se sobrepone a prioridad frontal
+ *   2.  Frontal bloqueado (x NAV_CONFIRM_COUNT) → maniobra evasiva
+ *       frenar → retroceder → girar 90° → limpiar buffer → arrancar
+ *   3.  Frontal libre + lateral cercano → correccion proporcional
+ *       sin frenar, diferencial de velocidad segun distancia
+ *   4.  Todo libre → avanzar
  *
  * @author Juan Felipe Orozco
  * @date 2026
@@ -25,14 +26,11 @@
 #include <stdbool.h>
 
 /* =========================================================
- * Velocidades
+ * Velocidades (rango 0-999)
  * ========================================================= */
 
-/** @brief Velocidad de avance normal (0-999) */
-#define NAV_SPEED_FORWARD        650
-
-/** @brief Velocidad durante maniobra evasiva — lento y controlado */
-#define NAV_SPEED_MANEUVER       380
+/** @brief Velocidad de avance normal */
+#define NAV_SPEED_FORWARD        450
 
 /** @brief Velocidad de giro en maniobra evasiva */
 #define NAV_SPEED_TURN           400
@@ -44,33 +42,37 @@
  * Umbrales de deteccion
  * ========================================================= */
 
-/** @brief Umbral frontal en cm */
-#define NAV_OBSTACLE_FRONT_CM     15
+/** @brief Umbral frontal en cm — confirmar obstaculo */
+#define NAV_OBSTACLE_FRONT_CM        12
 
-/** @brief Umbral lateral en cm — solo correccion suave sin frenar */
-#define NAV_OBSTACLE_SIDE_CM       8
+/** @brief Umbral lateral normal en cm — correccion proporcional suave */
+#define NAV_OBSTACLE_SIDE_CM         10
+
+/** @brief Umbral lateral critico en cm — frena y corrige inmediatamente
+ *  Se sobrepone a la prioridad frontal para evitar choque lateral */
+#define NAV_OBSTACLE_SIDE_CRITICAL_CM  4
+
+/** @brief Confirmaciones consecutivas para actuar en frontal */
+#define NAV_CONFIRM_COUNT              1
 
 /* =========================================================
  * Tiempos de maniobra
  * ========================================================= */
 
 /** @brief Pausa tras frenar — estabiliza lecturas (ms) */
-#define NAV_PAUSE_AFTER_STOP_MS   150
+#define NAV_PAUSE_AFTER_STOP_MS     150
 
-/** @brief Tiempo de retroceso (ms) */
-#define NAV_REVERSE_TIME_MS       450
+/** @brief Duracion del retroceso (ms) */
+#define NAV_REVERSE_TIME_MS         400
 
 /** @brief Pausa entre retroceso y giro (ms) */
-#define NAV_PAUSE_BEFORE_TURN_MS  150
+#define NAV_PAUSE_BEFORE_TURN_MS    150
 
-/** @brief Tiempo de giro 90 grados (ms) */
-#define NAV_TURN_90_MS            750
+/** @brief Duracion del giro ~90 grados (ms) */
+#define NAV_TURN_90_MS              750
 
-/** @brief Pausa post-giro antes de re-evaluar (ms) */
-#define NAV_PAUSE_AFTER_TURN_MS   300
-
-/** @brief Confirmaciones consecutivas para actuar (frontal) */
-#define NAV_CONFIRM_COUNT           3
+/** @brief Pausa post-giro antes de limpiar buffer (ms) */
+#define NAV_PAUSE_AFTER_TURN_MS     150
 
 /* =========================================================
  * API publica
@@ -82,13 +84,13 @@
 void navigation_init(void);
 
 /**
- * @brief Ejecuta un paso del algoritmo de navegacion
- * @return true si debe continuar
+ * @brief Ejecuta un paso del algoritmo de navegacion autonoma
+ * @return true si el modo debe continuar
  */
 bool navigation_step(void);
 
 /**
- * @brief Detiene el rover inmediatamente
+ * @brief Detiene el rover y resetea estado interno
  */
 void navigation_stop(void);
 
